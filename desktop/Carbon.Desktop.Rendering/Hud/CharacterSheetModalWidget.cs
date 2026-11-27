@@ -2,8 +2,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Numerics;
 using Carbon.Contracts.Entities;
+using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Desktop.Rendering.VectorArt;
@@ -14,24 +16,30 @@ using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Progression;
 
 namespace Carbon.Desktop.Rendering.Hud;
 
 /// <summary>
-/// Detailed Character Info &amp; Attribute Point Allocator tab (<c>[Y]</c>) hosted inside the
-/// fixed <see cref="PlayerModalTabs"/> workspace with restrained dark-slate styling (SRP).
+/// Character tab (<c>[Y]</c>) of the <see cref="PlayerModalTabs"/> workspace (ADR-021). Left card: portrait, level and
+/// experience, and every derived stat. Right card: the five attributes with their per-point effects and <c>+</c>
+/// buttons, the unspent point count, and the attribute reset button. Hovering a <c>+</c> button previews, in green,
+/// each stat that point would change. All numbers come from the synced <c>progression.json</c>.
 /// </summary>
 internal sealed class CharacterSheetModalWidget
 {
-    private static readonly PrimaryAttributeId[] s_statTargets =
-    [
-        PrimaryAttributeId.Vitality,
-        PrimaryAttributeId.Wisdom,
-        PrimaryAttributeId.Power,
-        PrimaryAttributeId.Agility,
-    ];
+    /// <summary>Seconds the reset button stays armed waiting for the confirming click.</summary>
+    private const float ResetConfirmWindowSeconds = 4f;
+
+    private static readonly ColorRgba s_previewText = new(120, 226, 150, 255);
 
     private readonly List<SkillDefinition> _skillScratch = new(8);
+    private readonly CharacterStatsPreview _preview = new();
+    private float _resetArmedUntil = -1f;
+    private float _clock;
+
+    /// <summary>Gets whether the reset button is armed (the next click on it confirms).</summary>
+    public bool IsResetArmed => _clock < _resetArmedUntil;
 
     public bool ContainsPoint(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
     {
@@ -56,16 +64,39 @@ internal sealed class CharacterSheetModalWidget
     public bool TryHitTestStatPlusButton(Vector2 mousePos, int viewportWidth, int viewportHeight, out PrimaryAttributeId attribute)
     {
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
-        for (int i = 0; i < s_statTargets.Length; i++)
+        for (int i = 0; i < CharacterStatsPreview.Attributes.Length; i++)
         {
             if (GetStatPlusRect(in layout, i).Contains(mousePos))
             {
-                attribute = s_statTargets[i];
+                attribute = CharacterStatsPreview.Attributes[i];
                 return true;
             }
         }
 
         attribute = PrimaryAttributeId.Vitality;
+        return false;
+    }
+
+    /// <summary>
+    /// Handles a click on the reset button: the first click arms it, a second click within a few seconds confirms.
+    /// Returns <see langword="true"/> only for the confirming click.
+    /// </summary>
+    public bool TryClickResetButton(IWorldReadModel world, Vector2 mousePos, int viewportWidth, int viewportHeight)
+    {
+        ArgumentNullException.ThrowIfNull(world);
+        PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
+        if (!GetResetRect(in layout).Contains(mousePos) || !HasAllocatedPoints(world))
+        {
+            return false;
+        }
+
+        if (this.IsResetArmed)
+        {
+            _resetArmedUntil = -1f;
+            return true;
+        }
+
+        _resetArmedUntil = _clock + ResetConfirmWindowSeconds;
         return false;
     }
 
@@ -86,20 +117,40 @@ internal sealed class CharacterSheetModalWidget
         skin.DrawCard(spriteBatch, in leftCard, CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
         skin.DrawCard(spriteBatch, in rightCard, CarbonUiPalette.BorderSubtle, bodyAlpha: 236);
 
+        PrimaryAttributeId? hovered = null;
         bool hasAp = world.LocalUnspentStatPoints > 0;
-        for (int i = 0; i < s_statTargets.Length; i++)
+        for (int i = 0; i < CharacterStatsPreview.Attributes.Length; i++)
         {
             RectangleF rowBox = GetStatRowRect(in layout, i);
-            skin.DrawInset(spriteBatch, in rowBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
-
             RectangleF plusRect = GetStatPlusRect(in layout, i);
             bool hoverPlus = mouseScreenPos.HasValue && plusRect.Contains(mouseScreenPos.Value);
+            if (hoverPlus)
+            {
+                hovered = CharacterStatsPreview.Attributes[i];
+            }
+
+            skin.DrawInset(spriteBatch, in rowBox, hoverPlus && hasAp ? CarbonUiPalette.SlotHoverFill : CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
             skin.DrawButton(
                 spriteBatch,
                 in plusRect,
                 hasAp ? (hoverPlus ? new ColorRgba(44, 114, 82, 245) : CarbonUiPalette.ConfirmFill) : CarbonUiPalette.SlotFill,
                 hasAp ? CarbonUiPalette.ConfirmBorder : CarbonUiPalette.BorderSubtle);
         }
+
+        RectangleF statsBox = GetStatsRect(in layout);
+        skin.DrawInset(spriteBatch, in statsBox, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
+
+        RectangleF reset = GetResetRect(in layout);
+        bool canReset = HasAllocatedPoints(world);
+        bool hoverReset = mouseScreenPos.HasValue && reset.Contains(mouseScreenPos.Value);
+        skin.DrawButton(
+            spriteBatch,
+            in reset,
+            !canReset ? CarbonUiPalette.SlotFill : this.IsResetArmed ? CarbonUiPalette.DangerFill : hoverReset ? CarbonUiPalette.SlotHoverFill : CarbonUiPalette.CardFill,
+            this.IsResetArmed ? CarbonUiPalette.DangerBorder : CarbonUiPalette.BorderSubtle);
+
+        // The model is refreshed once per frame here (the skin pass runs first), so the text pass reads a consistent preview.
+        _ = _preview.Update(world, SyncedProgressionConfig.Current, hovered);
     }
 
     public void DrawGeometry(
@@ -110,6 +161,7 @@ internal sealed class CharacterSheetModalWidget
         int viewportHeight,
         float animTime)
     {
+        _clock = animTime;
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         float s = layout.Scale;
         RectangleF leftCard = GetLeftCardRect(in layout);
@@ -133,10 +185,10 @@ internal sealed class CharacterSheetModalWidget
                 (ushort)activeItem.ItemId,
                 ItemEnhancementPolicy.GetUpgradeLevel(in activeItem));
 
-            float pedR = MathF.Round(38f * s);
-            Vector2 pedPos = new(leftCard.X + (leftCard.Width * 0.5f), leftCard.Y + MathF.Round(162f * s));
-            batch.FillCircle(pedPos + new Vector2(0f, -6f * s), pedR, new ColorRgba(6, 9, 14, 145), 16);
-            batch.DrawCircle(pedPos + new Vector2(0f, -6f * s), pedR + 1f, CarbonUiPalette.BorderSubtle, 16, 1.3f);
+            float pedR = MathF.Round(28f * s);
+            Vector2 pedPos = new(leftCard.X + MathF.Round(56f * s), leftCard.Y + MathF.Round(84f * s));
+            batch.FillCircle(pedPos + new Vector2(0f, -4f * s), pedR, new ColorRgba(6, 9, 14, 145), 16);
+            batch.DrawCircle(pedPos + new Vector2(0f, -4f * s), pedR + 1f, CarbonUiPalette.BorderSubtle, 16, 1.3f);
             VectorRigRenderer.DrawEntityRig(
                 batch,
                 rig,
@@ -145,7 +197,7 @@ internal sealed class CharacterSheetModalWidget
                 "idle",
                 animTime,
                 isNormalized: false,
-                targetHeightOverride: MathF.Round(122f * s),
+                targetHeightOverride: MathF.Round(84f * s),
                 hitFlash: 0f,
                 equippedItem: weaponArt,
                 action: default,
@@ -155,10 +207,9 @@ internal sealed class CharacterSheetModalWidget
                 art: art);
         }
 
-        // XP meter in Character card
-        float padX = MathF.Round(20f * s);
+        // XP meter under the name.
+        RectangleF xpTrack = GetXpTrackRect(in layout);
         float xpRatio = Math.Clamp(world.LocalPlayerExperience / MathF.Max(1f, world.LocalPlayerXpToNext), 0f, 1f);
-        RectangleF xpTrack = new(leftCard.X + padX, leftCard.Y + MathF.Round(246f * s), leftCard.Width - (padX * 2f), MathF.Max(8f, MathF.Round(10f * s)));
         batch.FillRectangle(xpTrack, CarbonUiPalette.SlotFill);
         if (xpRatio > 0.004f)
         {
@@ -181,6 +232,7 @@ internal sealed class CharacterSheetModalWidget
     {
         PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(viewportWidth, viewportHeight);
         float s = layout.Scale;
+        float ts = layout.TextScale;
         bool hasSkills = PlayerModalTabs.HasClassSkills(world, _skillScratch);
         ushort unspentAp = world.LocalUnspentStatPoints;
         PlayerModalTabs.DrawWindowChromeText(
@@ -197,63 +249,124 @@ internal sealed class CharacterSheetModalWidget
         RectangleF rightCard = GetRightCardRect(in layout);
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        // Left Character Summary
-        float lx = leftCard.X + MathF.Round(20f * s);
-        float textW = leftCard.Width - MathF.Round(40f * s);
+        // Identity, next to the portrait.
+        float idX = leftCard.X + MathF.Round(120f * s);
+        float idW = leftCard.Right - idX - MathF.Round(12f * s);
         string heroName = string.IsNullOrWhiteSpace(world.ActiveCharacterName) ? "Hero" : world.ActiveCharacterName;
-        spriteBatch.DrawOutlinedString(
-            font,
-            CarbonUiSkin.TruncateToWidth(font, heroName, textW, layout.TitleScale),
-            new Vector2(lx, leftCard.Y + MathF.Round(184f * s)),
-            CarbonUiPalette.TextPrimary,
-            black,
-            1,
-            layout.TitleScale);
-        spriteBatch.DrawOutlinedString(font, $"{world.LocalPlayerClass}  Lv.{world.LocalPlayerLevel}", new Vector2(lx, leftCard.Y + MathF.Round(216f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"XP {world.LocalPlayerExperience} / {world.LocalPlayerXpToNext}", new Vector2(lx, leftCard.Y + MathF.Round(264f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+        spriteBatch.DrawOutlinedString(font, CarbonUiSkin.TruncateToWidth(font, heroName, idW, layout.TitleScale), new Vector2(idX, leftCard.Y + MathF.Round(22f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TitleScale);
+        spriteBatch.DrawOutlinedString(font, $"{world.LocalPlayerClass}  Lv.{world.LocalPlayerLevel}", new Vector2(idX, leftCard.Y + MathF.Round(52f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
+        spriteBatch.DrawOutlinedString(font, $"HP {(int)MathF.Ceiling(world.LocalPlayerHealth)}/{(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}  MP {(int)MathF.Floor(world.LocalPlayerMana)}/{(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", new Vector2(idX, leftCard.Y + MathF.Round(76f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+        RectangleF xpTrack = GetXpTrackRect(in layout);
+        spriteBatch.DrawOutlinedString(font, $"XP {world.LocalPlayerExperience:N0} / {world.LocalPlayerXpToNext:N0}", new Vector2(xpTrack.X, xpTrack.Bottom + MathF.Round(6f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
 
-        spriteBatch.DrawOutlinedString(font, $"HP   {(int)MathF.Ceiling(world.LocalPlayerHealth)} / {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", new Vector2(lx, leftCard.Y + MathF.Round(304f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"MP   {(int)MathF.Floor(world.LocalPlayerMana)} / {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", new Vector2(lx, leftCard.Y + MathF.Round(334f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"STA  {(int)MathF.Floor(world.LocalPlayerStamina)} / {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", new Vector2(lx, leftCard.Y + MathF.Round(364f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-        spriteBatch.DrawOutlinedString(font, $"DEF  {(int)MathF.Round(world.LocalPlayerDefense)}", new Vector2(lx, leftCard.Y + MathF.Round(394f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TextScale);
+        // Derived stats: two columns of label + value; previewed changes show "now > next" in green.
+        RectangleF statsBox = GetStatsRect(in layout);
+        spriteBatch.DrawOutlinedString(font, "Stats", new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(8f * s)), CarbonUiPalette.TextWarm, black, 1, ts);
+        if (_preview.Config is null)
+        {
+            spriteBatch.DrawOutlinedString(font, "Syncing...", new Vector2(statsBox.X + MathF.Round(10f * s), statsBox.Y + MathF.Round(36f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
+        }
+        else
+        {
+            DerivedCharacterStats now = _preview.Current;
+            DerivedCharacterStats next = _preview.Preview;
+            int perColumn = (CharacterStatsPreview.StatLineCount + 1) / 2;
+            float colW = (statsBox.Width - MathF.Round(20f * s)) * 0.5f;
+            float rowH = MathF.Round(32f * s);
+            for (int i = 0; i < CharacterStatsPreview.StatLineCount; i++)
+            {
+                int col = i / perColumn;
+                int row = i % perColumn;
+                float x = statsBox.X + MathF.Round(10f * s) + (col * colW);
+                float y = statsBox.Y + MathF.Round(34f * s) + (row * rowH);
+                spriteBatch.DrawOutlinedString(font, CharacterStatsPreview.StatLabel(i), new Vector2(x, y), CarbonUiPalette.TextMuted, black, 1, ts);
+
+                bool changes = _preview.PreviewChanges(i);
+                string value = changes ? _preview.FormatStat(i, in next) : _preview.FormatStat(i, in now);
+                float valueW = font.MeasureString(value, scale: ts).Width;
+                float valueRight = x + colW - MathF.Round(12f * s);
+                spriteBatch.DrawOutlinedString(font, value, new Vector2(valueRight - valueW, y), changes ? s_previewText : CarbonUiPalette.TextPrimary, black, 1, ts);
+            }
+        }
 
         if (showTelemetry)
         {
-            spriteBatch.DrawOutlinedString(font, $"Pos ({ptx}, {pty})  {(int)fps} FPS", new Vector2(lx, leftCard.Y + MathF.Round(434f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
-            spriteBatch.DrawOutlinedString(font, $"Net: {world.TransportLabel}", new Vector2(lx, leftCard.Y + MathF.Round(462f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
+            spriteBatch.DrawOutlinedString(font, $"Pos ({ptx}, {pty})  {(int)fps} FPS  {world.TransportLabel}", new Vector2(leftCard.X + MathF.Round(12f * s), leftCard.Bottom - MathF.Round(22f * s)), CarbonUiPalette.TextMuted, black, 1, ts);
         }
 
-        // Right Attributes Card
-        spriteBatch.DrawOutlinedString(
-            font,
-            "Attributes",
-            new Vector2(rightCard.X + MathF.Round(18f * s), rightCard.Y + MathF.Round(18f * s)),
-            CarbonUiPalette.TextWarm,
-            black,
-            1,
-            layout.TitleScale);
+        // Attributes card.
+        float pad = MathF.Round(18f * s);
+        spriteBatch.DrawOutlinedString(font, "Attributes", new Vector2(rightCard.X + pad, rightCard.Y + MathF.Round(14f * s)), CarbonUiPalette.TextWarm, black, 1, layout.TitleScale);
+        string pointsText = unspentAp > 0 ? $"{unspentAp} to spend" : "No points";
+        float pointsW = font.MeasureString(pointsText, scale: ts).Width;
+        spriteBatch.DrawOutlinedString(font, pointsText, new Vector2(rightCard.Right - pad - pointsW, rightCard.Y + MathF.Round(18f * s)), unspentAp > 0 ? s_previewText : CarbonUiPalette.TextMuted, black, 1, ts);
 
-        ushort vitPts = world.GetAttributePoints(PrimaryAttributeId.Vitality);
-        ushort wisPts = world.GetAttributePoints(PrimaryAttributeId.Wisdom);
-        ushort pwrPts = world.GetAttributePoints(PrimaryAttributeId.Power);
-        ushort agiPts = world.GetAttributePoints(PrimaryAttributeId.Agility);
-
-        (string Title, string Bonus, ushort Pts)[] rows =
-        [
-            ("Vitality", $"Max HP {(int)MathF.Ceiling(world.LocalPlayerMaxHealth)}", vitPts),
-            ("Wisdom", $"Max MP {(int)MathF.Ceiling(world.LocalPlayerMaxMana)}", wisPts),
-            ("Power", $"Attack +{pwrPts * 3.5f:F0}%", pwrPts),
-            ("Agility", $"Stamina {(int)MathF.Ceiling(world.LocalPlayerMaxStamina)}", agiPts),
-        ];
-
-        for (int i = 0; i < rows.Length; i++)
+        for (int i = 0; i < CharacterStatsPreview.Attributes.Length; i++)
         {
+            PrimaryAttributeId attr = CharacterStatsPreview.Attributes[i];
             RectangleF rowRect = GetStatRowRect(in layout, i);
-            spriteBatch.DrawOutlinedString(font, $"{rows[i].Title} ({rows[i].Pts})", new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(16f * s)), CarbonUiPalette.TextPrimary, black, 1, layout.TextScale);
-            spriteBatch.DrawOutlinedString(font, rows[i].Bonus, new Vector2(rowRect.X + MathF.Round(16f * s), rowRect.Y + MathF.Round(48f * s)), CarbonUiPalette.TextMuted, black, 1, layout.TextScale);
             RectangleF plusRect = GetStatPlusRect(in layout, i);
+            float textW = plusRect.X - rowRect.X - MathF.Round(20f * s);
+            bool previewing = _preview.PreviewAttribute == attr;
+            spriteBatch.DrawOutlinedString(
+                font,
+                $"{CharacterStatsPreview.NameOf(attr)}  {world.GetAttributePoints(attr)}{(previewing ? " > " + (world.GetAttributePoints(attr) + 1).ToString(CultureInfo.InvariantCulture) : string.Empty)}",
+                new Vector2(rowRect.X + MathF.Round(12f * s), rowRect.Y + MathF.Round(8f * s)),
+                previewing ? s_previewText : CarbonUiPalette.TextPrimary,
+                black,
+                1,
+                ts);
+            spriteBatch.DrawOutlinedString(
+                font,
+                CarbonUiSkin.TruncateToWidth(font, _preview.DescribePerPoint(attr), textW, ts),
+                new Vector2(rowRect.X + MathF.Round(12f * s), rowRect.Y + MathF.Round(32f * s)),
+                CarbonUiPalette.TextMuted,
+                black,
+                1,
+                ts);
             CarbonUiSkin.DrawCenteredText(spriteBatch, font, "+", in plusRect, unspentAp > 0 ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted, black, layout.TitleScale);
         }
+
+        RectangleF reset = GetResetRect(in layout);
+        spriteBatch.DrawOutlinedString(
+            font,
+            CarbonUiSkin.TruncateToWidth(font, "Click + for 1 point, Shift+click for 5", reset.Width, ts),
+            new Vector2(reset.X, reset.Bottom + MathF.Round(12f * s)),
+            CarbonUiPalette.TextMuted,
+            black,
+            1,
+            ts);
+        CarbonUiSkin.DrawCenteredText(
+            spriteBatch,
+            font,
+            this.ResetLabel(world),
+            in reset,
+            HasAllocatedPoints(world) ? CarbonUiPalette.TextPrimary : CarbonUiPalette.TextMuted,
+            black,
+            ts);
+    }
+
+    private static bool HasAllocatedPoints(IWorldReadModel world)
+    {
+        for (int i = 0; i < CharacterStatsPreview.Attributes.Length; i++)
+        {
+            if (world.GetAttributePoints(CharacterStatsPreview.Attributes[i]) > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private string ResetLabel(IWorldReadModel world)
+    {
+        ProgressionConfig? config = _preview.Config;
+        long cost = config?.GetRespecCost(world.LocalPlayerLevel) ?? 0L;
+        string price = cost > 0L ? string.Create(CultureInfo.InvariantCulture, $"{cost:N0} gold") : "free";
+        return this.IsResetArmed
+            ? $"Click again to reset ({price})"
+            : $"Reset points ({price})";
     }
 
     private static RectangleF GetLeftCardRect(in PlayerModalLayout layout)
@@ -269,23 +382,51 @@ internal sealed class CharacterSheetModalWidget
         return new RectangleF(layout.ContentX + leftW + gap, layout.ContentY, layout.ContentW - leftW - gap, layout.ContentH);
     }
 
+    private static RectangleF GetXpTrackRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF left = GetLeftCardRect(in layout);
+        float pad = MathF.Round(14f * s);
+        return new RectangleF(left.X + pad, left.Y + MathF.Round(136f * s), left.Width - (pad * 2f), MathF.Max(8f, MathF.Round(9f * s)));
+    }
+
+    private static RectangleF GetStatsRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF left = GetLeftCardRect(in layout);
+        float pad = MathF.Round(10f * s);
+        float top = left.Y + MathF.Round(176f * s);
+        float bottomReserve = MathF.Round(30f * s); // room for the telemetry line under the box
+        return new RectangleF(left.X + pad, top, left.Width - (pad * 2f), left.Bottom - top - bottomReserve);
+    }
+
     private static RectangleF GetStatRowRect(in PlayerModalLayout layout, int rowIndex)
     {
         float s = layout.Scale;
         RectangleF rightCard = GetRightCardRect(in layout);
-        float pad = MathF.Round(18f * s);
+        float pad = MathF.Round(14f * s);
         return new RectangleF(
             rightCard.X + pad,
-            rightCard.Y + MathF.Round(60f * s) + (rowIndex * MathF.Round(106f * s)),
+            rightCard.Y + MathF.Round(48f * s) + (rowIndex * MathF.Round(70f * s)),
             rightCard.Width - (pad * 2f),
-            MathF.Round(90f * s));
+            MathF.Round(62f * s));
     }
 
     private static RectangleF GetStatPlusRect(in PlayerModalLayout layout, int rowIndex)
     {
         float s = layout.Scale;
         RectangleF row = GetStatRowRect(in layout, rowIndex);
-        float btn = MathF.Round(44f * s);
-        return new RectangleF(row.Right - btn - MathF.Round(16f * s), row.Y + MathF.Round(23f * s), btn, btn);
+        float btn = MathF.Round(38f * s);
+        return new RectangleF(row.Right - btn - MathF.Round(12f * s), row.Y + MathF.Round((62f - 38f) * 0.5f * s), btn, btn);
+    }
+
+    private static RectangleF GetResetRect(in PlayerModalLayout layout)
+    {
+        float s = layout.Scale;
+        RectangleF lastRow = GetStatRowRect(in layout, CharacterStatsPreview.Attributes.Length - 1);
+        RectangleF rightCard = GetRightCardRect(in layout);
+        float top = lastRow.Bottom + MathF.Round(12f * s);
+        float h = MathF.Min(MathF.Round(40f * s), rightCard.Bottom - top - MathF.Round(10f * s));
+        return new RectangleF(lastRow.X, top, lastRow.Width, h);
     }
 }

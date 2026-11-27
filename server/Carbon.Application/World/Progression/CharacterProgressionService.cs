@@ -84,7 +84,7 @@ internal sealed class CharacterProgressionService
     public void RecomputeDerivedStats(PlayerState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(
+        DerivedCharacterStats stats = CharacterStatCalculator.Compute(
             _itemRules(),
             this.Config,
             state.Level,

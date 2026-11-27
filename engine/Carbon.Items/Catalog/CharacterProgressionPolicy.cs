@@ -1,7 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
-using Carbon.Items.Containers;
 using Carbon.Items.Progression;
 
 namespace Carbon.Items.Catalog;
@@ -55,8 +54,8 @@ public readonly record struct SkillSpec(
     float StaminaRestore);
 
 /// <summary>
-/// Character stat aggregation (gear + <see cref="ProgressionConfig"/>), skill point rewards and active skill evaluation via
-/// <see cref="SkillCatalog"/>. Experience, attribute points, stat growth and mitigation come from <c>progression.json</c>
+/// Skill point rewards and active skill evaluation via <see cref="SkillCatalog"/>; derived stats are computed by
+/// <see cref="CharacterStatCalculator"/>. Experience, attribute points, stat growth and mitigation come from <c>progression.json</c>
 /// (ADR-021); this class holds no balance table for them.
 /// </summary>
 public static class CharacterProgressionPolicy
@@ -83,79 +82,6 @@ public static class CharacterProgressionPolicy
         ArgumentNullException.ThrowIfNull(state);
         int total = GetTotalSkillPointsForLevel(level);
         return (ushort)Math.Max(0, total - state.GetTotalSpentSkillPoints());
-    }
-
-    /// <summary>
-    /// Computes derived stats from <paramref name="config"/> (<c>progression.json</c>): base and per-level growth,
-    /// attribute allocations, equipped armor (slots <c>36..39</c>) and the held weapon, with caps applied.
-    /// </summary>
-    /// <param name="rules">Item rules (armor and weapon stats).</param>
-    /// <param name="config">Progression tuning.</param>
-    /// <param name="level">Character level.</param>
-    /// <param name="inventory">Inventory with equipment slots.</param>
-    /// <param name="selectedHotbarSlot">Held hotbar slot (<see cref="byte.MaxValue"/> = none).</param>
-    /// <param name="progression">Attribute allocations.</param>
-    /// <returns>The derived stats.</returns>
-    public static DerivedCharacterStats ComputeStats(
-        ItemRules rules,
-        ProgressionConfig config,
-        ushort level,
-        InventoryContainer inventory,
-        byte selectedHotbarSlot,
-        CharacterProgressionState? progression)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-        GearStatBonus gear = SumGear(rules, inventory, selectedHotbarSlot);
-        return config.ComputeStats(level, progression, in gear);
-    }
-
-    /// <summary>
-    /// Sums the bonuses of equipped, non-broken armor (slots <c>36..39</c>) and the held weapon, enhancement included.
-    /// </summary>
-    /// <param name="rules">Item rules.</param>
-    /// <param name="inventory">Inventory with equipment slots.</param>
-    /// <param name="selectedHotbarSlot">Held hotbar slot (<see cref="byte.MaxValue"/> = none).</param>
-    /// <returns>The summed gear bonuses.</returns>
-    public static GearStatBonus SumGear(ItemRules rules, InventoryContainer inventory, byte selectedHotbarSlot)
-    {
-        ArgumentNullException.ThrowIfNull(rules);
-        ArgumentNullException.ThrowIfNull(inventory);
-
-        float hp = 0f;
-        float mp = 0f;
-        float def = 0f;
-        float crit = 0f;
-        for (int slotIdx = PlayerInventoryLayout.HeadSlot; slotIdx <= PlayerInventoryLayout.FeetSlot && slotIdx < inventory.Capacity; slotIdx++)
-        {
-            ItemSlot armor = inventory.GetSlot(slotIdx);
-            if (armor.IsEmpty || ToolUsagePolicy.IsWornOut(rules, in armor))
-            {
-                continue;
-            }
-
-            float upgMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in armor));
-            hp += rules.GetArmorBonusHealth(armor.ItemId) * upgMult;
-            mp += rules.GetArmorBonusMana(armor.ItemId) * upgMult;
-            def += rules.GetArmorDefense(armor.ItemId) * upgMult;
-        }
-
-        if (selectedHotbarSlot < PlayerInventoryLayout.HotbarCount && selectedHotbarSlot < inventory.Capacity)
-        {
-            ItemSlot held = inventory.GetSlot(selectedHotbarSlot);
-            if (!held.IsEmpty &&
-                !ToolUsagePolicy.IsWornOut(rules, in held) &&
-                rules.Items.TryGet(held.ItemId, out Definitions.ItemArchetype? heldDef) &&
-                heldDef.Category == Definitions.ItemCategory.Weapon)
-            {
-                float upgMult = ItemEnhancementPolicy.GetStatMultiplier(ItemEnhancementPolicy.GetUpgradeLevel(in held));
-                hp += MathF.Max(0f, heldDef.BonusHealth) * upgMult;
-                mp += MathF.Max(0f, heldDef.BonusMana) * upgMult;
-                def += MathF.Max(0f, heldDef.ArmorDefense) * upgMult;
-                crit += MathF.Max(0f, heldDef.CritChance);
-            }
-        }
-
-        return new GearStatBonus(hp, mp, def, crit);
     }
 
     /// <summary>Resolves baseline Rank 1 specs for <paramref name="skillId"/> via <see cref="SkillCatalog"/>.</summary>

@@ -57,6 +57,12 @@ public sealed class DesktopOptions
     /// <summary>Gets or sets a value indicating whether the runner closes automatically after capture.</summary>
     public bool AutoExit { get; init; }
 
+    /// <summary>Gets or sets a player panel tab to open once in the world (<c>CARBON_OPEN_PANEL=character</c>), for screenshots.</summary>
+    public string? OpenPanel { get; init; }
+
+    /// <summary>Gets or sets a fixed mouse position in window pixels (<c>CARBON_CAPTURE_MOUSE=x,y</c>), for screenshots of hover states.</summary>
+    public (float X, float Y)? CaptureMouse { get; init; }
+
     /// <summary>
     /// Gets or sets an optional constant walk direction applied instead of keyboard movement
     /// (<c>CARBON_AUTO_WALK=x,y</c>; used by the screenshot tool to capture actors in motion).
@@ -146,6 +152,15 @@ public sealed class DesktopOptions
             ? Math.Clamp(parsedFrames, 0, 240)
             : 0;
 
+        (float X, float Y)? captureMouse = null;
+        if (get("CARBON_CAPTURE_MOUSE") is { Length: > 0 } mouse &&
+            mouse.Split(',') is [string mx, string my] &&
+            float.TryParse(mx, NumberStyles.Float, CultureInfo.InvariantCulture, out float cmx) &&
+            float.TryParse(my, NumberStyles.Float, CultureInfo.InvariantCulture, out float cmy))
+        {
+            captureMouse = (cmx, cmy);
+        }
+
         (float X, float Y)? autoWalk = null;
         if (get("CARBON_AUTO_WALK") is { Length: > 0 } walk &&
             walk.Split(',') is [string wx, string wy] &&
@@ -195,6 +210,8 @@ public sealed class DesktopOptions
             CaptureFrames = captureFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             AutoWalk = autoWalk,
+            OpenPanel = get("CARBON_OPEN_PANEL") is { Length: > 0 } panel ? panel.Trim() : null,
+            CaptureMouse = captureMouse,
             ServerHost = serverHost,
             ServerTcpPort = serverTcpPort,
             AutoLogin = string.Equals(get("CARBON_AUTO_LOGIN"), "1", StringComparison.Ordinal),

@@ -61,6 +61,7 @@ public sealed class WorldGameplayScene : GameScene
     private Vector2 _mouseScreenPosition;
     private Vector2 _mouseWorldPosition;
     private int _frameCount;
+    private bool _openedCapturePanel;
     private int _carriedInventorySlot = -1;
     private Vector2 _pressStartMousePos;
     private bool _isHoldDragging;
@@ -164,6 +165,18 @@ public sealed class WorldGameplayScene : GameScene
 
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         DesktopInputFrame input = DesktopInputController.Poll(context.Input);
+        if (_options.CaptureMouse is (float cmx, float cmy))
+        {
+            // Screenshot aid: pin the cursor so hover states (e.g. the stat preview) render deterministically.
+            input = input with { MouseScreenPosition = new Vector2(cmx, cmy) };
+        }
+
+        if (!_openedCapturePanel && string.Equals(_options.OpenPanel, "character", StringComparison.OrdinalIgnoreCase))
+        {
+            _openedCapturePanel = true;
+            _ = _hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Character);
+        }
+
         _mouseScreenPosition = input.MouseScreenPosition;
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
 
@@ -337,7 +350,12 @@ public sealed class WorldGameplayScene : GameScene
                     }
                     else if (_hudRenderer.TryHitTestCharacterStatPlus(mouseScreen, context.WindowWidth, context.WindowHeight, out PrimaryAttributeId statTarget))
                     {
-                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, 1);
+                        // Shift+click spends 5 at once; the server clamps to the unspent budget.
+                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.Attribute, (ushort)statTarget, input.ShiftHeld ? (byte)5 : (byte)1);
+                    }
+                    else if (_hudRenderer.TryClickCharacterReset(_session, mouseScreen, context.WindowWidth, context.WindowHeight))
+                    {
+                        _ = _session.TryAllocateCharacterPoint(PointAllocationKind.ResetAttributes, 0, 1);
                     }
                 }
             }

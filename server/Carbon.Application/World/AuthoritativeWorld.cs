@@ -441,13 +441,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             InventoryContainer inventory = new(PlayerInventoryCapacity);
             character = CharacterPersistence.LoadInventory(character, inventory);
 
-            ushort startLevel = Math.Max((ushort)1, character.Level);
+            ushort startLevel = Math.Max(Math.Max((ushort)1, character.Level), _debugStartLevel);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
             CharacterProgressionState startProg = CharacterPersistence.LoadProgression(character);
             startLevel = (ushort)Math.Min(startLevel, _progressionService.Config.MaxLevel);
             bool refunded = _progressionService.RefundIfOverBudget(startLevel, startProg);
 
-            DerivedCharacterStats stats = CharacterProgressionPolicy.ComputeStats(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);
+            DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);
             float startHp = MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
@@ -867,6 +867,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     // Where every character enters the world while a debug spawn override is active.
     private Vector2? _debugSpawnPosition;
+    private ushort _debugStartLevel; // minimum level of entering characters (CARBON_DEBUG_START_LEVEL)
 
     /// <summary>Gets the forced debug spawn position, if a debug override set one.</summary>
     public Vector2? DebugSpawnPosition
@@ -925,6 +926,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 _debugSpawnPosition = new Vector2((spawn.X + 0.5f) * this.TileSize, (spawn.Y + 0.5f) * this.TileSize);
             }
 
+            _debugStartLevel = overrides.StartLevel ?? 0;
             if (overrides.StartHour is float hour)
             {
                 // The clock is a pure function of the tick (WorldProgression), so the start hour is a tick offset.
@@ -935,7 +937,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
             string spawnText = movesSpawn ? $"{spawn.X},{spawn.Y}" : "default";
             string hourText = overrides.StartHour?.ToString("0.##", CultureInfo.InvariantCulture) ?? "default";
-            return $"spawn={spawnText}, startHour={hourText}";
+            return $"spawn={spawnText}, startHour={hourText}, startLevel={overrides.StartLevel?.ToString(CultureInfo.InvariantCulture) ?? "default"}";
         }
     }
 }

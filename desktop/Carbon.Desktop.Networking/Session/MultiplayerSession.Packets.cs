@@ -1156,7 +1156,10 @@ public sealed partial class MultiplayerSession
 
             bool isHeal = pkt.Damage < 0f;
             float mag = MathF.Abs(pkt.Damage);
-            _combatEvents.Add(new CombatFeedbackEvent(worldPos, mag, pkt.IsCritical, isHeal));
+
+            // A 0-damage hit that kills nothing is a dodge (ADR-021 evasion).
+            string? label = pkt.Damage == 0f && !pkt.IsKilled ? "Miss" : null;
+            _combatEvents.Add(new CombatFeedbackEvent(worldPos, mag, pkt.IsCritical, isHeal, label));
         }
     }
 

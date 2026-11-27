@@ -284,8 +284,8 @@ public sealed class ProgressionConfigTests
         InventoryContainer inv = new(PlayerInventoryLayout.TotalCapacity);
         inv.SetSlot(PlayerInventoryLayout.HeadSlot, new ItemSlot(StarterGameCatalog.IronHelmet, 1, 0UL, 220f));
 
-        DerivedCharacterStats bare = CharacterProgressionPolicy.ComputeStats(rules, s_config, 5, new InventoryContainer(PlayerInventoryLayout.TotalCapacity), byte.MaxValue, null);
-        DerivedCharacterStats geared = CharacterProgressionPolicy.ComputeStats(rules, s_config, 5, inv, byte.MaxValue, null);
+        DerivedCharacterStats bare = CharacterStatCalculator.Compute(rules, s_config, 5, new InventoryContainer(PlayerInventoryLayout.TotalCapacity), byte.MaxValue, null);
+        DerivedCharacterStats geared = CharacterStatCalculator.Compute(rules, s_config, 5, inv, byte.MaxValue, null);
 
         (geared.Defense - bare.Defense).Should().BeApproximately(rules.GetArmorDefense(StarterGameCatalog.IronHelmet), 1e-3f);
     }

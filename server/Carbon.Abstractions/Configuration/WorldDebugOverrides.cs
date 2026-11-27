@@ -24,7 +24,10 @@ public sealed record WorldDebugOverrides
     /// <summary>Gets the in-game hour (0..24) the world clock starts at, if any.</summary>
     public float? StartHour { get; init; }
 
+    /// <summary>Gets the minimum level characters enter the world at (screenshots of mid-level UI), if any.</summary>
+    public ushort? StartLevel { get; init; }
+
     /// <summary>Gets a value indicating whether any override is set.</summary>
     public bool IsActive => this.SpawnTile.HasValue || this.SpawnBiome is not null || this.StartHour.HasValue ||
-        this.SpawnOffset != default;
+        this.SpawnOffset != default || this.StartLevel.HasValue;
 }
