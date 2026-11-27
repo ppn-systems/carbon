@@ -3,6 +3,7 @@
 using System;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 
 namespace Carbon.Abstractions.World;
 
@@ -77,7 +78,8 @@ public readonly record struct PlayerNeedsSnapshot(
 /// </summary>
 /// <remarks>
 /// For ground loot, <c>LootCurrency</c> says whether it is an item stack or a gold/diamond pile, and <c>LootOwnerNetworkId</c> / <c>LootProtectionMs</c> name the only player who may pick it up and for how much longer
-/// (both 0 when anyone may).
+/// (both 0 when anyone may). For a player, <c>Look</c> is the character's race, body type and option choices (ADR-042);
+/// it is <see langword="default"/> for every other kind.
 /// </remarks>
 public readonly record struct EntitySpawnSnapshot(
     ulong NetworkId,
@@ -101,7 +103,8 @@ public readonly record struct EntitySpawnSnapshot(
     byte WeaponUpgradeLevel = 0,
     LootCurrency LootCurrency = LootCurrency.None,
     ulong LootOwnerNetworkId = 0UL,
-    uint LootProtectionMs = 0U);
+    uint LootProtectionMs = 0U,
+    CharacterLook Look = default);
 
 /// <summary>
 /// Per-entity delta slice collected inside a tick's AoI snapshot batch.

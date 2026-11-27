@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "races": [
+    {
+      "id": 1,
+      "code": "human",
+      "nameKey": "race.human",
+      "bodies": [
+        { "id": 0, "code": "male", "nameKey": "race.body.male", "rig": "characters/base_hero.cvg.json" },
+        { "id": 1, "code": "female", "nameKey": "race.body.female", "rig": "characters/human_female.cvg.json" }
+      ],
+      "options": [
+        {
+          "code": "hair_style",
+          "nameKey": "appearance.hair",
+          "role": "hair",
+          "choices": [
+            { "nameKey": "appearance.hair.crop", "part": "hair_crop" },
+            { "nameKey": "appearance.hair.spiky", "part": "hair_spiky" },
+            { "nameKey": "appearance.hair.long", "part": "hair_long" },
+            { "nameKey": "appearance.hair.bob", "part": "hair_bob" }
+          ]
+        },
+        {
+          "code": "hair_color",
+          "nameKey": "appearance.hair_color",
+          "role": "hair",
+          "choices": [
+            { "nameKey": "appearance.hair_color.raven", "colors": ["#1C202E", "#444C66"] },
+            { "nameKey": "appearance.hair_color.brown", "colors": ["#713F12", "#A16207"] },
+            { "nameKey": "appearance.hair_color.gold", "colors": ["#EAB308", "#FDE047"] },
+            { "nameKey": "appearance.hair_color.silver", "colors": ["#CBD5E1", "#F1F5F9"] }
+          ]
+        },
+        {
+          "code": "eye_color",
+          "nameKey": "appearance.eyes",
+          "role": "eye",
+          "choices": [
+            { "nameKey": "appearance.eyes.cobalt", "colors": ["#1E3A8A"] },
+            { "nameKey": "appearance.eyes.crimson", "colors": ["#DC2626"] },
+            { "nameKey": "appearance.eyes.emerald", "colors": ["#10B981"] },
+            { "nameKey": "appearance.eyes.mystic", "colors": ["#38BDF8"] }
+          ]
+        },
+        {
+          "code": "skin_tone",
+          "nameKey": "appearance.skin",
+          "role": "skin",
+          "choices": [
+            { "nameKey": "appearance.skin.fair", "colors": ["#F5C6A5", "#D49B78"] },
+            { "nameKey": "appearance.skin.tan", "colors": ["#E6A97D", "#BE8258"] },
+            { "nameKey": "appearance.skin.bronze", "colors": ["#C6865C", "#9E623E"] },
+            { "nameKey": "appearance.skin.umber", "colors": ["#8D5524", "#663A16"] }
+          ]
+        }
+      ],
+      "statModifiers": {}
+    }
+  ]
+}

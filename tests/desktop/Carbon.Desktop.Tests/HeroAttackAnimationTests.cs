@@ -19,7 +19,7 @@ public sealed class HeroAttackAnimationTests
     {
         string artRoot = VectorArtValidator.TryFindArtRootDirectory() ?? throw new InvalidOperationException("art root not found");
         CarbonVectorArtLibrary lib = CarbonVectorArtLibrary.LoadFromDirectory(artRoot);
-        return lib.TryGetCharacter(0, out CompiledVectorRig? rig) ? rig : throw new InvalidOperationException("base_hero missing");
+        return lib.DefaultCharacterRig ?? throw new InvalidOperationException("base_hero missing");
     });
 
     public static TheoryData<HeroAttackStyle> Styles() =>

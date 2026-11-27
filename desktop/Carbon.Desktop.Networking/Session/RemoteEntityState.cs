@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Prediction.Remote;
 
@@ -19,6 +20,7 @@ internal sealed class RemoteEntityState
     public ulong NetworkId { get; init; }
     public EntityKind Kind { get; init; }
     public ushort ArchetypeId { get; init; }
+    public CharacterLook Look { get; init; }
     public string Name { get; init; } = string.Empty;
     public string? NameKey { get; init; }
     public Vector2 Position { get; set; }
@@ -74,6 +76,7 @@ internal sealed class RemoteEntityState
         NetworkId = pkt.NetworkId,
         Kind = pkt.Kind,
         ArchetypeId = pkt.ArchetypeId,
+        Look = CharacterLook.TryCreate(pkt.RaceId, pkt.BodyType, pkt.AppearanceOptions, out CharacterLook look) ? look : default,
         Name = pkt.Name,
         NameKey = nameKey,
         Position = new Vector2(pkt.PositionX, pkt.PositionY),

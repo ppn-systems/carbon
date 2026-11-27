@@ -56,9 +56,7 @@ public sealed partial class CharacterEnterWorld : PacketBase<CharacterEnterWorld
     [SerializeOrder(9)]
     public ushort TickRate { get; set; }
 
-    /// <summary>Visual appearance preset index (0..255) of the entered character.</summary>
-    [SerializeOrder(10)]
-    public byte AppearancePreset { get; set; }
+    // [SerializeOrder(10)] was the packed AppearancePreset byte, replaced by orders 26–28 in protocol 8 (ADR-042).
 
     /// <summary>Persisted active hotbar slot (<c>0..8</c>).</summary>
     [SerializeOrder(11)]
@@ -119,4 +117,16 @@ public sealed partial class CharacterEnterWorld : PacketBase<CharacterEnterWorld
     /// <summary>Versioned binary character progression payload (attributes + skill ranks).</summary>
     [SerializeOrder(25)]
     public byte[] ProgressionBlob { get; set; } = [];
+
+    /// <summary>Race id of the entered character (<c>races.json</c>, ADR-042).</summary>
+    [SerializeOrder(26)]
+    public ushort RaceId { get; set; }
+
+    /// <summary>Body type id within the race (ADR-042).</summary>
+    [SerializeOrder(27)]
+    public byte BodyType { get; set; }
+
+    /// <summary>One choice index per appearance option of the race, in the race's option order (ADR-042).</summary>
+    [SerializeOrder(28)]
+    public byte[] AppearanceOptions { get; set; } = [];
 }

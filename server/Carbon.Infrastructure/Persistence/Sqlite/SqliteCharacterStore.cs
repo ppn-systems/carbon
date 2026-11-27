@@ -9,6 +9,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
+using Carbon.Items.Races;
 using Microsoft.Data.Sqlite;
 
 namespace Carbon.Infrastructure.Persistence.Sqlite;
@@ -19,7 +20,7 @@ namespace Carbon.Infrastructure.Persistence.Sqlite;
 public sealed class SqliteCharacterStore : ICharacterStore
 {
     private const string ListSql = """
-        SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
+        SELECT id, account_id, name, level, appearance, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
@@ -31,7 +32,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
         """;
 
     private const string FindSql = """
-        SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
+        SELECT id, account_id, name, level, appearance, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
@@ -44,20 +45,19 @@ public sealed class SqliteCharacterStore : ICharacterStore
 
     private const string InsertSql = """
         INSERT INTO characters (
-            id, account_id, name, level, appearance_preset, position_x, position_y,
+            id, account_id, name, level, appearance, position_x, position_y,
             current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
             experience, current_mana, max_mana, current_stamina, max_stamina,
             class_id, character_flags, skill_flags, progression_blob,
             gold, diamonds, wallet_sequence, diamond_pity,
             needs_food, needs_malnutrition, needs_poison_seconds, needs_rest, status_effects)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison, @nrest, @nstatus)
+        VALUES (@id, @account_id, @name, @level, @appearance, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison, @nrest, @nstatus)
         ON CONFLICT (name) DO NOTHING;
         """;
 
     private const string UpdateSql = """
         UPDATE characters
         SET level = @level,
-            appearance_preset = @preset,
             position_x = @px,
             position_y = @py,
             current_health = @hp,
@@ -147,7 +147,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
         _ = cmd.Parameters.AddWithValue("@account_id", character.AccountId.ToString("D"));
         _ = cmd.Parameters.AddWithValue("@name", character.Name);
         _ = cmd.Parameters.AddWithValue("@level", (int)character.Level);
-        _ = cmd.Parameters.AddWithValue("@preset", (int)character.AppearancePreset);
+        _ = cmd.Parameters.AddWithValue("@appearance", CharacterLookBinaryCodec.Serialize(character.Look));
         _ = cmd.Parameters.AddWithValue("@px", character.PositionX);
         _ = cmd.Parameters.AddWithValue("@py", character.PositionY);
         _ = cmd.Parameters.AddWithValue("@hp", character.CurrentHealth);
@@ -198,7 +198,6 @@ public sealed class SqliteCharacterStore : ICharacterStore
 
         SqliteParameter pId = cmd.Parameters.Add("@id", SqliteType.Text);
         SqliteParameter pLevel = cmd.Parameters.Add("@level", SqliteType.Integer);
-        SqliteParameter pPreset = cmd.Parameters.Add("@preset", SqliteType.Integer);
         SqliteParameter pPx = cmd.Parameters.Add("@px", SqliteType.Real);
         SqliteParameter pPy = cmd.Parameters.Add("@py", SqliteType.Real);
         SqliteParameter pHp = cmd.Parameters.Add("@hp", SqliteType.Real);
@@ -231,7 +230,6 @@ public sealed class SqliteCharacterStore : ICharacterStore
             CharacterRecord c = characters[i];
             pId.Value = c.Id.ToString("D");
             pLevel.Value = (int)c.Level;
-            pPreset.Value = (int)c.AppearancePreset;
             pPx.Value = c.PositionX;
             pPy.Value = c.PositionY;
             pHp.Value = c.CurrentHealth;
@@ -274,7 +272,7 @@ public sealed class SqliteCharacterStore : ICharacterStore
             Guid.Parse(reader.GetString(1)),
             reader.GetString(2),
             (ushort)reader.GetInt32(3),
-            (byte)reader.GetInt32(4),
+            CharacterLookBinaryCodec.Deserialize(await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false)),
             reader.GetFloat(5),
             reader.GetFloat(6),
             reader.GetFloat(7),

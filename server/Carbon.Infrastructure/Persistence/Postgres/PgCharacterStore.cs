@@ -10,6 +10,7 @@ using Carbon.Abstractions.Persistence;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Identity;
+using Carbon.Items.Races;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -21,7 +22,7 @@ namespace Carbon.Infrastructure.Persistence.Postgres;
 public sealed class PgCharacterStore : ICharacterStore
 {
     private const string ListSql = """
-        SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
+        SELECT id, account_id, name, level, appearance, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
@@ -33,7 +34,7 @@ public sealed class PgCharacterStore : ICharacterStore
         """;
 
     private const string FindSql = """
-        SELECT id, account_id, name, level, appearance_preset, position_x, position_y,
+        SELECT id, account_id, name, level, appearance, position_x, position_y,
                current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
                experience, current_mana, max_mana, current_stamina, max_stamina,
                class_id, character_flags, skill_flags, progression_blob,
@@ -46,20 +47,19 @@ public sealed class PgCharacterStore : ICharacterStore
 
     private const string InsertSql = """
         INSERT INTO characters (
-            id, account_id, name, level, appearance_preset, position_x, position_y,
+            id, account_id, name, level, appearance, position_x, position_y,
             current_health, max_health, selected_hotbar_slot, inventory_blob, updated_at_utc,
             experience, current_mana, max_mana, current_stamina, max_stamina,
             class_id, character_flags, skill_flags, progression_blob,
             gold, diamonds, wallet_sequence, diamond_pity,
             needs_food, needs_malnutrition, needs_poison_seconds, needs_rest, status_effects)
-        VALUES (@id, @account_id, @name, @level, @preset, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison, @nrest, @nstatus)
+        VALUES (@id, @account_id, @name, @level, @appearance, @px, @py, @hp, @max_hp, @slot, @inv, @updated, @xp, @mp, @max_mp, @stam, @max_stam, @class_id, @cflags, @sflags, @pblob, @gold, @diamonds, @wseq, @pity, @nfood, @nmal, @npoison, @nrest, @nstatus)
         ON CONFLICT (name) DO NOTHING;
         """;
 
     private const string UpdateSql = """
         UPDATE characters
         SET level = @level,
-            appearance_preset = @preset,
             position_x = @px,
             position_y = @py,
             current_health = @hp,
@@ -149,7 +149,7 @@ public sealed class PgCharacterStore : ICharacterStore
         _ = cmd.Parameters.Add(new NpgsqlParameter("account_id", NpgsqlDbType.Uuid) { Value = character.AccountId });
         _ = cmd.Parameters.Add(new NpgsqlParameter("name", NpgsqlDbType.Varchar) { Value = character.Name });
         _ = cmd.Parameters.Add(new NpgsqlParameter("level", NpgsqlDbType.Integer) { Value = (int)character.Level });
-        _ = cmd.Parameters.Add(new NpgsqlParameter("preset", NpgsqlDbType.Smallint) { Value = (short)character.AppearancePreset });
+        _ = cmd.Parameters.Add(new NpgsqlParameter("appearance", NpgsqlDbType.Bytea) { Value = CharacterLookBinaryCodec.Serialize(character.Look) });
         _ = cmd.Parameters.Add(new NpgsqlParameter("px", NpgsqlDbType.Real) { Value = character.PositionX });
         _ = cmd.Parameters.Add(new NpgsqlParameter("py", NpgsqlDbType.Real) { Value = character.PositionY });
         _ = cmd.Parameters.Add(new NpgsqlParameter("hp", NpgsqlDbType.Real) { Value = character.CurrentHealth });
@@ -204,7 +204,6 @@ public sealed class PgCharacterStore : ICharacterStore
             NpgsqlBatchCommand item = new(UpdateSql);
             _ = item.Parameters.Add(new NpgsqlParameter("id", NpgsqlDbType.Uuid) { Value = c.Id });
             _ = item.Parameters.Add(new NpgsqlParameter("level", NpgsqlDbType.Integer) { Value = (int)c.Level });
-            _ = item.Parameters.Add(new NpgsqlParameter("preset", NpgsqlDbType.Smallint) { Value = (short)c.AppearancePreset });
             _ = item.Parameters.Add(new NpgsqlParameter("px", NpgsqlDbType.Real) { Value = c.PositionX });
             _ = item.Parameters.Add(new NpgsqlParameter("py", NpgsqlDbType.Real) { Value = c.PositionY });
             _ = item.Parameters.Add(new NpgsqlParameter("hp", NpgsqlDbType.Real) { Value = c.CurrentHealth });
@@ -249,7 +248,7 @@ public sealed class PgCharacterStore : ICharacterStore
             reader.GetGuid(1),
             reader.GetString(2),
             (ushort)reader.GetInt32(3),
-            (byte)reader.GetInt16(4),
+            CharacterLookBinaryCodec.Deserialize(await reader.GetFieldValueAsync<byte[]>(4, ct).ConfigureAwait(false)),
             reader.GetFloat(5),
             reader.GetFloat(6),
             reader.GetFloat(7),

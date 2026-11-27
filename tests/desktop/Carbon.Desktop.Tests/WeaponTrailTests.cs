@@ -19,7 +19,7 @@ public sealed class WeaponTrailTests
     private static readonly Lazy<CarbonVectorArtLibrary> s_art = new(() =>
         CarbonVectorArtLibrary.LoadFromDirectory(VectorArtValidator.TryFindArtRootDirectory() ?? throw new InvalidOperationException("art root not found")));
 
-    private static CompiledVectorRig Hero => s_art.Value.TryGetCharacter(0, out CompiledVectorRig? rig) ? rig : throw new InvalidOperationException("hero");
+    private static CompiledVectorRig Hero => s_art.Value.DefaultCharacterRig ?? throw new InvalidOperationException("hero");
 
     private static CompiledItemVectorArt Item(uint id) => s_art.Value.TryGetItem(id, out CompiledItemVectorArt? art) ? art : throw new InvalidOperationException($"item {id}");
 

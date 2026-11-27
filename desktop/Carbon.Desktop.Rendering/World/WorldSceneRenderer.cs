@@ -713,7 +713,8 @@ public sealed class WorldSceneRenderer : IDisposable
         float tileSize = world.ChunkWorld.TileSize;
         Vector2 footPos = new(entityPos.X, entityPos.Y + col.Radius);
         CompiledVectorRig? rig = null;
-        bool hasRig = _art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out rig);
+        CharacterPalette palette = CharacterPalette.Default;
+        bool hasRig = _art is not null && CharacterLookResolver.TryResolve(_art, world.Races.Current, world.LocalPlayerLook, out rig, out palette);
         WadingRenderer.Wade wade = WadingRenderer.Resolve(world.ChunkWorld, entityPos, hasRig ? rig!.WorldHeight : 35f, col.Radius);
         _slowTrail.Update(footPos, _animTime - _slowTrailTime, IsSlowed(world));
         _slowTrailTime = _animTime;
@@ -783,7 +784,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 equipped,
                 action,
                 world.AttackSwingTimer,
-                world.LocalPlayerAppearancePreset,
+                palette,
                 loadout,
                 _art);
             if (!downed)
@@ -885,7 +886,7 @@ public sealed class WorldSceneRenderer : IDisposable
         CompiledVectorRig? wadeRig = null;
         bool hasWadeRig = _art is not null && remote.Kind switch
         {
-            EntityKind.Player => _art.TryGetCharacter((byte)remote.ArchetypeId, out wadeRig),
+            EntityKind.Player => CharacterLookResolver.TryResolve(_art, world.Races.Current, remote.Look, out wadeRig, out _),
             EntityKind.Npc => _art.TryGetNpc(remote.ArchetypeId, out wadeRig),
             EntityKind.Monster => _art.TryGetMonster(remote.ArchetypeId, out wadeRig),
             EntityKind.Projectile or EntityKind.LootDrop or _ => false,
@@ -919,7 +920,7 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             CompiledVectorRig? rig = null;
             CompiledItemVectorArt? remoteWeapon = null;
-            byte preset = 0;
+            CharacterPalette palette = CharacterPalette.Default;
             RigOverlay overlays = RigOverlay.None;
             VisualEquipmentLoadout remoteLoadout = default;
             string clip = moving ? "walk" : "idle";
@@ -927,9 +928,8 @@ public sealed class WorldSceneRenderer : IDisposable
             bool norm = false;
             float eval = _animTime + (remote.NetworkId % 7 * 0.13f);
 
-            if (remote.Kind == EntityKind.Player && _art.TryGetCharacter((byte)remote.ArchetypeId, out rig))
+            if (remote.Kind == EntityKind.Player && CharacterLookResolver.TryResolve(_art, world.Races.Current, remote.Look, out rig, out palette))
             {
-                preset = (byte)remote.ArchetypeId;
                 remoteLoadout = new VisualEquipmentLoadout(
                     remote.EquippedHeadId,
                     remote.EquippedChestId,
@@ -1047,7 +1047,7 @@ public sealed class WorldSceneRenderer : IDisposable
                     equippedItem: remoteWeapon,
                     action: remoteAction,
                     swingTimer: remoteAction.IsActive ? 0f : remote.AttackAnimRemaining,
-                    appearancePreset: preset,
+                    palette: palette,
                     equipment: remoteLoadout,
                     art: _art,
                     overlays: overlays,
