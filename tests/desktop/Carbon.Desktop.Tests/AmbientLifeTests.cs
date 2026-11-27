@@ -3,6 +3,7 @@
 using System;
 using System.Numerics;
 using Carbon.Desktop.Rendering.Atmospherics;
+using Carbon.Desktop.Rendering.World;
 using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
@@ -75,6 +76,22 @@ public sealed class AmbientLifeTests
             _ = AmbientLife.TryGetBird(i % AmbientLife.FlockSlots, i % AmbientLife.BirdsPerFlock, i * 0.05f, s_min, s_max, out _));
 
         window.Bytes.Should().Be(0, $"every bird is placed every frame ({window})");
+    }
+
+    [Fact]
+    public void LifeClock_ServerOwnsTheHour_KeepsBirdsFlying()
+    {
+        // Online the server owns the hour and the weather clock stands still (#223); birds must not freeze with it.
+        Atmosphere atmosphere = new(11f, 1440f, forcedRain: false);
+        WorldSceneRenderer.AdvanceAtmosphere(atmosphere, 11f, 1f / 60f, 1f);
+        float before = atmosphere.LifeClock;
+
+        for (int frame = 0; frame < 60; frame++)
+        {
+            WorldSceneRenderer.AdvanceAtmosphere(atmosphere, 11f, 1f / 60f, 1f);
+        }
+
+        (atmosphere.LifeClock - before).Should().BeApproximately(1f, 1e-3f, "a second of online frames moves the flocks a second on");
     }
 
     // A flock slot and a time at which its leader has been flying for a while and keeps flying for 1 s more.

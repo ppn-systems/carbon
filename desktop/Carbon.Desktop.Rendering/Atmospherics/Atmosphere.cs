@@ -97,6 +97,9 @@ internal sealed class Atmosphere
     /// <summary>Gets the animation clock in seconds (what rain, clouds and fireflies move with).</summary>
     public float AnimationTime => _anim;
 
+    /// <summary>Gets the clock birds and pollen motes fly by: the animation clock, so they keep moving online.</summary>
+    internal float LifeClock => _anim;
+
     /// <summary>Advances the clock and the weather.</summary>
     public void Update(float dt)
     {
@@ -130,7 +133,7 @@ internal sealed class Atmosphere
     {
         this.UpdateClouds(minX, minY, maxX, maxY);
         _clouds.DrawShadows(batch, this.Hour, this.Night, this.Rain);
-        AmbientLife.DrawBirdShadows(batch, _time, new Vector2(minX, minY), new Vector2(maxX, maxY), AmbientLife.DayActivity(this.Night, this.Rain));
+        AmbientLife.DrawBirdShadows(batch, this.LifeClock, new Vector2(minX, minY), new Vector2(maxX, maxY), AmbientLife.DayActivity(this.Night, this.Rain));
     }
 
     /// <summary>The ambient pass: multiplies the whole view by the light colour.</summary>
@@ -220,7 +223,7 @@ internal sealed class Atmosphere
     public void DrawOverlay(GeometryBatch batch, float minX, float minY, float maxX, float maxY, Vector2 player)
     {
         _clouds.DrawClouds(batch, this.Hour, this.Night, this.Rain, player);
-        AmbientLife.DrawSky(batch, _time, new Vector2(minX, minY), new Vector2(maxX, maxY), AmbientLife.DayActivity(this.Night, this.Rain));
+        AmbientLife.DrawSky(batch, this.LifeClock, new Vector2(minX, minY), new Vector2(maxX, maxY), AmbientLife.DayActivity(this.Night, this.Rain));
 
         if (this.Rain > 0.02f)
         {
