@@ -302,7 +302,7 @@ public sealed class RepairModalWidget
 
         if (state.Damaged.Count == 0)
         {
-            spriteBatch.DrawOutlinedString(font, GameText.Get("repair.nonestate.Damaged"), new Vector2(ox + 26f, oy + 82f), CarbonUiPalette.TextMuted, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(font, GameText.Get("repair.none_damaged"), new Vector2(ox + 26f, oy + 82f), CarbonUiPalette.TextMuted, black, 1, 1f);
         }
 
         if (!plan.HasItem)
