@@ -86,7 +86,7 @@ public sealed partial class MultiplayerSession
             {
                 lock (_worldGate)
                 {
-                    _hudNotifications.Add("Vitals are already full!");
+                    _hudNotifications.Add(GameText.Get("hud.vitals_full"));
                 }
 
                 return false;
@@ -98,7 +98,7 @@ public sealed partial class MultiplayerSession
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add("Not enough Mana!");
+                _hudNotifications.Add(GameText.Get("hud.not_enough_mana"));
             }
 
             return false;
@@ -170,7 +170,7 @@ public sealed partial class MultiplayerSession
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add("Skill locked");
+                _hudNotifications.Add(GameText.Get("hud.skill_locked"));
             }
 
             return false;
@@ -186,7 +186,7 @@ public sealed partial class MultiplayerSession
         {
             lock (_worldGate)
             {
-                _hudNotifications.Add(_localMana < spec.ManaCost ? "Not enough Mana!" : "Not enough Stamina!");
+                _hudNotifications.Add(_localMana < spec.ManaCost ? GameText.Get("hud.not_enough_mana") : GameText.Get("hud.not_enough_stamina"));
             }
 
             return false;

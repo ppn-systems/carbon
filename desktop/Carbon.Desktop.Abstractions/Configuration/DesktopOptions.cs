@@ -72,6 +72,12 @@ public sealed class DesktopOptions
     public (float X, float Y)? AutoWalk { get; init; }
 
     /// <summary>
+    /// Gets or sets a HUD window to open before the automatic capture (<c>CARBON_CAPTURE_MODAL=settings|controls</c>;
+    /// used by the screenshot tool to review localized UI, ADR-023 D8). Empty when unset.
+    /// </summary>
+    public string CaptureModal { get; init; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets an optional UI state the screenshot tool opens on start (<c>CARBON_UI_PREVIEW</c>):
     /// <c>inventory</c>, or <c>inventory-tooltip:N</c>, <c>inventory-split:N</c>, <c>inventory-destroy:N</c> for slot
     /// <c>N</c>. Purely visual; nothing is sent to the server.
@@ -210,6 +216,7 @@ public sealed class DesktopOptions
             CaptureFrames = captureFrames,
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             AutoWalk = autoWalk,
+            CaptureModal = get("CARBON_CAPTURE_MODAL") is { Length: > 0 } modal ? modal.Trim().ToLowerInvariant() : string.Empty,
             ForgePreview = get("CARBON_FORGE_PREVIEW") is { Length: > 0 } forgePreview ? forgePreview.Trim() : null,
             UiPreview = get("CARBON_UI_PREVIEW") is { Length: > 0 } preview ? preview.Trim() : null,
             ServerHost = serverHost,

@@ -166,6 +166,13 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
+        // Checked before the modal early-returns below, so a capture with CARBON_CAPTURE_MODAL still exits.
+        if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
+        {
+            context.Window.Close();
+            return;
+        }
+
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         DesktopInputFrame input = DesktopInputController.Poll(context.Input);
         _mouseScreenPosition = input.MouseScreenPosition;
@@ -273,7 +280,7 @@ public sealed class WorldGameplayScene : GameScene
             this.ResetInventoryDragState();
             if (!_hudRenderer.OpenOrTogglePlayerTab(_session, PlayerModalTab.Skills))
             {
-                _hudRenderer.PushNotification("Skills unlock upon class advancement");
+                _hudRenderer.PushNotification(GameText.Get("notice.skills_need_class"));
             }
         }
 
@@ -622,11 +629,6 @@ public sealed class WorldGameplayScene : GameScene
         bool inside = _worldRenderer.TryGetBuildingAt(playerPos, out RectangleF room);
         float rateDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
         _cameraRig.Update(playerPos, inside, in room, rateDt);
-
-        if (_options.AutoExit && _frameCount >= 25 + _options.CaptureFrames)
-        {
-            context.Window.Close();
-        }
     }
 
     /// <inheritdoc/>
@@ -668,6 +670,11 @@ public sealed class WorldGameplayScene : GameScene
         base.Render(context, spriteBatch, dt);
 
         _frameCount++;
+        if (_frameCount == 15 && _options.CaptureModal.Length > 0)
+        {
+            _hudRenderer.OpenSettings(string.Equals(_options.CaptureModal, "controls", StringComparison.Ordinal) ? 1 : 0);
+        }
+
         if (_frameCount >= 20 && !_hasAutoCaptured)
         {
             _hasAutoCaptured = true;
