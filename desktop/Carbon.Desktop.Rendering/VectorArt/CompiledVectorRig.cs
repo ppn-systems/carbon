@@ -359,6 +359,12 @@ public sealed class CompiledVectorRig
     /// <summary>Gets a value indicating whether the art catalog marks this monster rig as an elite variant.</summary>
     public bool IsElite { get; init; }
 
+    /// <summary>
+    /// Gets the horizontal scale the modular chest armor, pauldrons and cape use on this body (1 = the male human torso,
+    /// ADR-042 D11), so the same equipment fits every body rig of one skeleton.
+    /// </summary>
+    public float TorsoWidthScale { get; init; } = 1f;
+
     /// <summary>Gets the rig-local anchors for night eye-glow and the elite crown.</summary>
     public RigMarkers Markers { get; init; } = RigMarkers.Empty;
 

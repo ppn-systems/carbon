@@ -384,6 +384,9 @@ internal sealed class WorldOutboundSink : IWorldOutboundSink
             pkt.LootCurrency = spawn.LootCurrency;
             pkt.LootOwnerNetworkId = spawn.LootOwnerNetworkId;
             pkt.LootProtectionMs = spawn.LootProtectionMs;
+            pkt.RaceId = spawn.Look.RaceId;
+            pkt.BodyType = spawn.Look.BodyType;
+            pkt.AppearanceOptions = spawn.Look.ToOptionArray(pkt.AppearanceOptions);
 
             bool encrypt = connection.Algorithm != CipherSuiteType.None;
             await connection.SendAsync(pkt, enableEncrypt: encrypt, CancellationToken.None).ConfigureAwait(false);

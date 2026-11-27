@@ -235,7 +235,7 @@ public sealed class CharacterProgressionServiceTests
         {
             ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
-                session.CharacterId, session.AccountId, "Tester", level, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+                session.CharacterId, session.AccountId, "Tester", level, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             this.Player = new PlayerState(session, this.Simulation.SpawnNetworkEntity(900UL, Vector2.Zero, 7f), character, new InventoryContainer(PlayerInventoryLayout.TotalCapacity))
             {
                 Level = level,

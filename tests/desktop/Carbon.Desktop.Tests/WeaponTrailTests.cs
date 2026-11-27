@@ -8,6 +8,7 @@ using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Desktop.Rendering.World;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Items.Catalog;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -19,7 +20,7 @@ public sealed class WeaponTrailTests
     private static readonly Lazy<CarbonVectorArtLibrary> s_art = new(() =>
         CarbonVectorArtLibrary.LoadFromDirectory(VectorArtValidator.TryFindArtRootDirectory() ?? throw new InvalidOperationException("art root not found")));
 
-    private static CompiledVectorRig Hero => s_art.Value.TryGetCharacter(0, out CompiledVectorRig? rig) ? rig : throw new InvalidOperationException("hero");
+    private static CompiledVectorRig Hero => s_art.Value.DefaultCharacterRig ?? throw new InvalidOperationException("hero");
 
     private static CompiledItemVectorArt Item(uint id) => s_art.Value.TryGetItem(id, out CompiledItemVectorArt? art) ? art : throw new InvalidOperationException($"item {id}");
 
@@ -133,18 +134,16 @@ public sealed class WeaponTrailTests
     {
         CompiledVectorRig rig = Hero;
         CompiledItemVectorArt item = Item(StarterGameCatalog.IronSword);
-        Span<Vector2> inner = stackalloc Vector2[WeaponTrailRenderer.Samples + 1];
-        Span<Vector2> outer = stackalloc Vector2[WeaponTrailRenderer.Samples + 1];
         ActionState action = Swing(ActionAnimationKind.SwordSlash, StarterGameCatalog.IronSword, 0, 0.3f);
-        _ = WeaponTrailRenderer.SamplePath(rig, item, Vector2.Zero, Direction8.East, in action, inner, outer, out _);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int frame = 0; frame < 200; frame++)
+        AllocationResult window = AllocationProbe.Measure(200, warmupIterations: 200, frame =>
         {
+            Span<Vector2> inner = stackalloc Vector2[WeaponTrailRenderer.Samples + 1];
+            Span<Vector2> outer = stackalloc Vector2[WeaponTrailRenderer.Samples + 1];
             ActionState at = action with { RemainingSeconds = action.DurationSeconds * (1f - (frame / 200f)) };
             _ = WeaponTrailRenderer.SamplePath(rig, item, Vector2.Zero, Direction8.East, in at, inner, outer, out _);
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the trail is sampled every frame");
+        window.Bytes.Should().Be(0, $"the trail is sampled every frame ({window})");
     }
 }

@@ -155,7 +155,7 @@ internal sealed class InventoryModalWidget(HudUiState state)
         world.CopyInventorySlots(slots);
 
         RectangleF dollRect = InventoryModalLayout.GetPaperDollRect(in layout);
-        if (art is not null && art.TryGetCharacter(world.LocalPlayerAppearancePreset, out CompiledVectorRig? heroRig))
+        if (art is not null && CharacterLookResolver.TryResolve(art, world.Races.Current, world.LocalPlayerLook, out CompiledVectorRig? heroRig, out CharacterPalette palette) && heroRig is not null)
         {
             ItemSlot activeItem = world.SelectedHotbarSlot < slots.Length ? slots[world.SelectedHotbarSlot] : ItemSlot.Empty;
             CompiledItemVectorArt? weaponArt = null;
@@ -189,7 +189,7 @@ internal sealed class InventoryModalWidget(HudUiState state)
                 equippedItem: weaponArt,
                 action: default,
                 swingTimer: 0f,
-                appearancePreset: world.LocalPlayerAppearancePreset,
+                palette: palette,
                 equipment: loadout,
                 art: art);
         }

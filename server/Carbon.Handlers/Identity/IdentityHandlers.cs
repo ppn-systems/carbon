@@ -142,7 +142,9 @@ public static partial class IdentityHandlers
                     (int)MathF.Floor(c.PositionY / s_world.TileSize));
                 item.PositionX = c.PositionX;
                 item.PositionY = c.PositionY;
-                item.AppearancePreset = c.AppearancePreset;
+                item.RaceId = c.Look.RaceId;
+                item.BodyType = c.Look.BodyType;
+                item.AppearanceOptions = c.Look.ToOptionArray();
                 item.ClassId = (byte)c.Class;
                 item.Traits = c.Flags;
                 await sender.ReplyAsync(item).ConfigureAwait(false);
@@ -169,11 +171,18 @@ public static partial class IdentityHandlers
         IPacketSender sender = context.Sender;
         CancellationToken ct = context.CancellationToken;
         string characterName = context.Packet.CharacterName;
-        byte appearancePreset = context.Packet.AppearancePreset;
+        CharacterCreate request = context.Packet;
+        bool lookFits = CharacterLook.TryCreate(request.RaceId, request.BodyType, request.AppearanceOptions, out CharacterLook look);
         ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         if (!ConnectionAuthRegistry.TryGetAccountId(connectionId, out Guid accountId))
         {
             await PacketReplyHelper.SendMutationAsync(sender, OpStatus.Forbidden, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
+            return;
+        }
+
+        if (!lookFits)
+        {
+            await PacketReplyHelper.SendMutationAsync(sender, OpStatus.Invalid, IdentityOpCode.CharacterCreate).ConfigureAwait(false);
             return;
         }
 
@@ -182,7 +191,7 @@ public static partial class IdentityHandlers
             .CreateCharacterAsync(
                 accountId,
                 characterName,
-                appearancePreset,
+                look,
                 spawn.X,
                 spawn.Y,
                 ct)
@@ -192,7 +201,7 @@ public static partial class IdentityHandlers
             ? OpStatus.Ok
             : result.FailureReason switch
             {
-                "invalid_name" => OpStatus.Invalid,
+                "invalid_name" or "invalid_look" => OpStatus.Invalid,
                 "character_limit_reached" => OpStatus.Forbidden,
                 _ => OpStatus.Conflict,
             };
@@ -285,7 +294,9 @@ public static partial class IdentityHandlers
             reply.PositionY = result.PositionY;
             reply.ServerTick = result.ServerTick;
             reply.TickRate = result.TickRate;
-            reply.AppearancePreset = result.AppearancePreset;
+            reply.RaceId = result.Look.RaceId;
+            reply.BodyType = result.Look.BodyType;
+            reply.AppearanceOptions = result.Look.ToOptionArray(reply.AppearanceOptions);
             reply.SelectedHotbarSlot = result.SelectedHotbarSlot;
             reply.Level = result.Level;
             reply.Experience = result.Experience;

@@ -8,6 +8,7 @@ using Carbon.Desktop.Rendering.PostProcessing;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Desktop.Rendering.World;
 using Carbon.Graphics.OpenGL.Abstractions;
+using Carbon.Testing;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
@@ -123,16 +124,13 @@ public sealed class GraphicsQualityTests
     public void QualityChoice_SetEveryFrameToTheSameValue_AllocatesNothing()
     {
         using WorldSceneRenderer renderer = new(Substitute.For<IGraphicsDevice>(), new DesktopOptions(), Substitute.For<IVectorArtRepository>());
-        renderer.QualityChoice = GraphicsQuality.High;
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1000; i++)
+        AllocationResult window = AllocationProbe.Measure(1000, warmupIterations: 1000, i =>
         {
             renderer.QualityChoice = GraphicsQuality.High;
             _ = renderer.Plan;
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the scene sets the choice every frame");
+        window.Bytes.Should().Be(0, $"the scene sets the choice every frame ({window})");
     }
 
     [Theory]

@@ -17,6 +17,7 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Landmarks;
 using Carbon.Maps.Streaming;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -217,15 +218,14 @@ public sealed class MinimapTests
         _ = cache.Prepare(world, null, view.VisibleChunks(), sink, 100);
         MinimapIconCollector.Collect(world, remotes, s_npcs, 0, in view, TileSize, icons).Should().BeGreaterThan(1, "the village and the monster are on the map");
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 200; i++)
+        AllocationResult window = AllocationProbe.Measure(200, warmupIterations: 200, i =>
         {
             cache.Invalidate(centreX, centreY);
             _ = cache.Prepare(world, null, view.VisibleChunks(), sink, 3);
             _ = MinimapIconCollector.Collect(world, remotes, s_npcs, 0, in view, TileSize, icons);
-        }
+        });
 
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the minimap runs every frame (AGENTS.md rule 4)");
+        window.Bytes.Should().Be(0, $"the minimap runs every frame (AGENTS.md rule 4) ({window})");
     }
 
     [Fact]

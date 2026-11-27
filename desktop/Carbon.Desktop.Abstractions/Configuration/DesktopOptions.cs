@@ -141,9 +141,9 @@ public sealed class DesktopOptions
 
     /// <summary>
     /// Gets or sets a menu scene to capture instead of the world
-    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters</c>, ADR-023 D8, ADR-037). Each needs
-    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen.
-    /// Empty when unset.
+    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters|roster</c>, ADR-023 D8, ADR-037). Each needs
+    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen,
+    /// and <c>roster</c> also creates two sample heroes and captures the roster. Empty when unset.
     /// </summary>
     public string CaptureScene { get; init; } = string.Empty;
 
@@ -174,6 +174,12 @@ public sealed class DesktopOptions
 
     /// <summary>Gets or sets the preferred character display name when creating a starter character.</summary>
     public string CharacterName { get; init; } = "Hero";
+
+    /// <summary>
+    /// Gets the body type code (<c>races.json</c>, e.g. <c>female</c>) an auto-login starter character is created with
+    /// (<c>CARBON_CHARACTER_BODY</c>, screenshot capture); <see langword="null"/> keeps the race's first body (ADR-042).
+    /// </summary>
+    public string? CharacterBodyCode { get; init; }
 
     /// <summary>
     /// Gets or sets the file that keeps the "Remember me" account (<c>CARBON_ACCOUNT_FILE</c>; ADR-037). It holds a
@@ -324,6 +330,7 @@ public sealed class DesktopOptions
             Username = username,
             Password = password,
             CharacterName = charName,
+            CharacterBodyCode = get("CARBON_CHARACTER_BODY") is { Length: > 0 } body ? body.Trim() : null,
             ConfigCacheDirectory = configCache,
             AccountFile = get("CARBON_ACCOUNT_FILE") is { Length: > 0 } accountFile ? accountFile.Trim() : DefaultAccountFile(),
             CustomServerEntry = string.Equals(get("CARBON_DEV_SERVERS"), "1", StringComparison.Ordinal),

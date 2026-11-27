@@ -258,6 +258,15 @@ public interface IWorldReadModel : IConnectionStatus, ICharacterProfile, INpcCap
     /// <summary>Drains newly buffered prop impact/fracture events into <paramref name="destination"/>.</summary>
     void DrainPropImpactEvents(List<PropImpactEvent> destination);
 
+    /// <summary>
+    /// Drains confirmed damaging hits since the last call into <paramref name="destination"/>, for the impact
+    /// presentation (hit-stop, shake, target flash). Hits the local player deals leave the target flash to that
+    /// presentation, which shows it when the swing makes contact.
+    /// </summary>
+    void DrainStrikeImpactEvents(List<StrikeImpactEvent> destination)
+    {
+    }
+
     /// <summary>Drains the local player's items that broke since the last call (ADR-035) into <paramref name="destination"/>.</summary>
     void DrainItemBreakEvents(List<ItemBreakEvent> destination)
     {

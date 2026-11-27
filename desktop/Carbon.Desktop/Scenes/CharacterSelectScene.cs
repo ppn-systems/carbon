@@ -25,6 +25,7 @@ using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Graphics.Windowing.Input;
 using Carbon.Items.Catalog;
+using Carbon.Items.Races;
 using Silk.NET.Input;
 using Silk.NET.OpenGL;
 using Carbon.Desktop.Rendering.Fonts;
@@ -38,11 +39,6 @@ namespace Carbon.Desktop.Scenes;
 /// </summary>
 public sealed class CharacterSelectScene : GameScene
 {
-    private static readonly string[] s_hairStyles = ["character.hair.crop", "character.hair.spiky", "character.hair.long", "character.hair.bob"];
-    private static readonly string[] s_hairColors = ["character.hair_color.raven", "character.hair_color.brown", "character.hair_color.gold", "character.hair_color.silver"];
-    private static readonly string[] s_faceStyles = ["character.eyes.cobalt", "character.eyes.crimson", "character.eyes.emerald", "character.eyes.mystic"];
-    private static readonly string[] s_skinTones = ["character.skin.fair", "character.skin.tan", "character.skin.bronze", "character.skin.umber"];
-    private static readonly Direction8[] s_turnDirs = [Direction8.South, Direction8.West, Direction8.North, Direction8.East];
     private static readonly uint[] s_classWeapons = [StarterGameCatalog.IronSword, StarterGameCatalog.HuntingBow, StarterGameCatalog.ArcaneStaff];
     private static readonly string[] s_freshStartLines =
     [
@@ -69,17 +65,14 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuButton _turnLeftBtn = new(GameText.Get("character.turn_left"), MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _turnRightBtn = new(GameText.Get("character.turn_right"), MenuButtonStyle.NeutralSlate);
     private readonly MenuButton _randomizeBtn = new(GameText.Get("character.randomize"), MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hairPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hairNextBtn = new(">", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hColPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _hColNextBtn = new(">", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _facePrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _faceNextBtn = new(">", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _skinPrevBtn = new("<", MenuButtonStyle.NeutralSlate);
-    private readonly MenuButton _skinNextBtn = new(">", MenuButtonStyle.NeutralSlate);
+    private readonly MenuPicker[] _rows = CreatePickers();
+    private readonly MenuToggle _bodyToggle = new(string.Empty, string.Empty);
     private readonly MenuButton _logoutButton = new(GameText.Get("character.logout"), MenuButtonStyle.DangerRed);
     private readonly RectangleF[] _slotBounds = new RectangleF[CharacterRoster.MaxHeroes];
-    private RectangleF _freshStartBounds;
+    private RectangleF _appearanceCard;
+    private RectangleF _loreStrip;
+    private int _pickerFocus = -1;
+    private RectangleF _optionsBounds;
 
     private GeometryBatch? _geometryBatch;
     private BitmapFont? _font;
@@ -89,7 +82,11 @@ public sealed class CharacterSelectScene : GameScene
     private IInputManager? _boundInput;
 
     private bool _enteringWorld;
-    private int _turnIndex;
+    private int _optionScroll;
+    private float _frameDt;
+    private float _nameRejectedFor;
+    private bool _createAttempted;
+    private int _hoveredSlot = -1;
     private bool _isCreatorMode;
 
     private float _elapsed;
@@ -98,13 +95,12 @@ public sealed class CharacterSelectScene : GameScene
     private readonly MenuSceneCapture _capture;
     private readonly CachedText _headerText = new();
     private readonly CachedText _netText = new();
-    private readonly CachedText _hairText = new();
-    private readonly CachedText _toneText = new();
-    private readonly CachedText _eyesText = new();
-    private readonly CachedText _skinText = new();
+    private readonly CachedText[] _optionRowText = [new(), new(), new(), new(), new(), new()];
     private readonly CachedText _dossierText = new();
     private readonly CachedText _positionText = new();
     private readonly CachedText[] _rosterRowText = [new(), new(), new(), new()];
+    private readonly CachedText[] _traitIndexText = [new(), new(), new(), new(), new(), new()];
+    private readonly HeroTurntable _turntable;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CharacterSelectScene"/> class.
@@ -116,11 +112,14 @@ public sealed class CharacterSelectScene : GameScene
         _session = flow.Session;
         _requests = new CharacterRosterRequests(_session, flow.SignOutAsync, _roster);
         DesktopOptions options = flow.Options;
-        _capture = new MenuSceneCapture(options, "characters");
+        _capture = new MenuSceneCapture(options, string.Equals(options.CaptureScene, RosterCapture.SceneName, StringComparison.Ordinal) ? RosterCapture.SceneName : "characters");
+        _turntable = new HeroTurntable(options.MenuMotion);
 
-        _createNameField = new MenuTextField(GameText.Get("character.field.name"), GameText.Get("character.hint.name"), options.CharacterName, isPassword: false, maxLength: 20)
+        _createNameField = new MenuTextField(GameText.Get("character.field.name"), GameText.Get("character.hint.name"), options.CharacterName, isPassword: false, maxLength: AccountRules.MaxHeroName)
         {
-            CharacterFilter = static ch => char.IsLetterOrDigit(ch) || ch == '_' || ch == ' ',
+            // The server takes 2-20 ASCII letters, digits or _ (no spaces, no accents): refuse the rest as it is typed.
+            CharacterFilter = AccountRules.IsHeroNameChar,
+            Icon = MenuFieldIcon.Hero,
         };
     }
 
@@ -139,11 +138,33 @@ public sealed class CharacterSelectScene : GameScene
     /// <summary>Gets the selected roster row (behaviour tests).</summary>
     internal int SelectedIndex => _roster.SelectedIndex;
 
-    /// <summary>Gets the packed appearance the creator would send (behaviour tests).</summary>
-    internal byte AppearancePreset => _appearance.Preset;
+    /// <summary>Gets the look the creator would send (behaviour tests).</summary>
+    internal CharacterLook Look => _appearance.Look;
+
+    /// <summary>Gets how many selector rows the creator panel has room for: race, body type, then option rows.</summary>
+    internal static int VisibleOptionRows => 6;
+
+    /// <summary>Gets how many option rows fit under the race and body rows.</summary>
+    internal static int VisibleAppearanceRows => VisibleOptionRows - FirstOptionRow;
+
+    /// <summary>Gets the first option shown when the race has more options than fit (the mouse wheel scrolls them).</summary>
+    internal int OptionScroll => _optionScroll;
+
+    /// <summary>Gets how many selector rows are shown: race and body (once races.json has synced), then options.</summary>
+    private int ShownOptionRows => _appearance.Race is null
+        ? 0
+        : FirstOptionRow + Math.Min(_appearance.OptionCount, VisibleAppearanceRows);
+
+    private const int RaceRow = 0;
+    private const int BodyRow = 1;
+    private const int FirstOptionRow = 2;
+    private const float SelectorRowStep = 36f;
+
+    /// <summary>Gets the hero name field (behaviour tests read its text and feedback).</summary>
+    internal MenuTextField HeroName => _createNameField;
 
     /// <summary>Gets the preview turntable direction index (behaviour tests).</summary>
-    internal int TurnIndex => _turnIndex;
+    internal int TurnIndex => _turntable.Index;
 
     /// <inheritdoc/>
     public override void Load(SceneContext context)
@@ -189,7 +210,18 @@ public sealed class CharacterSelectScene : GameScene
         base.Update(context, dt);
 
         _elapsed += (float)dt;
+        _frameDt = (float)dt;
+        _nameRejectedFor = MathF.Max(0f, _nameRejectedFor - (float)dt);
+        _turntable.Advance((float)dt);
         _flow.Backdrop.Advance((float)dt);
+        bool firstCatalog = _appearance.Catalog is null;
+        _appearance.Bind(_session.Races.Current);
+        if (firstCatalog && _appearance.Catalog is not null && _flow.Options.CharacterBodyCode is { } bodyCode)
+        {
+            _ = _appearance.SelectBody(bodyCode); // CARBON_CHARACTER_BODY preselects a body (screenshot capture)
+        }
+
+        this.ScrollOptions(0);
         this.PollRequests(context);
 
         if (_requests.IsSigningOut || _requests.IsEnteringWorld)
@@ -234,6 +266,36 @@ public sealed class CharacterSelectScene : GameScene
             }
         }
 
+        if (_isCreatorMode && _pickerFocus >= 0)
+        {
+            // A focused selector row takes Left/Right; Q/E still turn the hero.
+            int step = kb.IsKeyPressed(Key.Left) ? -1 : kb.IsKeyPressed(Key.Right) ? 1 : 0;
+            if (step != 0 && !busy && this.RowChoiceCount(_pickerFocus) > 1)
+            {
+                this.CycleRow(_pickerFocus, step);
+            }
+
+            if (kb.IsKeyPressed(Key.Q))
+            {
+                _turntable.Turn(-1);
+            }
+            else if (kb.IsKeyPressed(Key.E))
+            {
+                _turntable.Turn(1);
+            }
+        }
+        else if (!_createNameField.IsFocused)
+        {
+            if (kb.IsKeyPressed(Key.Left) || kb.IsKeyPressed(Key.Q))
+            {
+                _turntable.Turn(-1);
+            }
+            else if (kb.IsKeyPressed(Key.Right) || kb.IsKeyPressed(Key.E))
+            {
+                _turntable.Turn(1);
+            }
+        }
+
         this.HandleBackspaceRepeat(kb, (float)dt);
 
         bool leftDown = mouse.IsButtonDown(MouseButton.Left);
@@ -244,25 +306,25 @@ public sealed class CharacterSelectScene : GameScene
         _turnLeftBtn.IsEnabled = !busy;
         _turnRightBtn.IsEnabled = !busy;
 
-        if (_logoutButton.Update(mousePos, leftDown, leftPressed))
+        if (_logoutButton.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             this.BeginLogout();
             return;
         }
 
-        if (_turnLeftBtn.Update(mousePos, leftDown, leftPressed))
+        if (_turnLeftBtn.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
-            _turnIndex = (_turnIndex + s_turnDirs.Length - 1) % s_turnDirs.Length;
+            _turntable.Turn(-1);
         }
 
-        if (_turnRightBtn.Update(mousePos, leftDown, leftPressed))
+        if (_turnRightBtn.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
-            _turnIndex = (_turnIndex + 1) % s_turnDirs.Length;
+            _turntable.Turn(1);
         }
 
         if (_isCreatorMode)
         {
-            this.UpdateCreatorMode(kb, mousePos, leftDown, leftPressed, (float)dt, busy);
+            this.UpdateCreatorMode(kb, mousePos, mouse.ScrollDelta.Y, leftDown, leftPressed, (float)dt, busy);
         }
         else
         {
@@ -295,13 +357,13 @@ public sealed class CharacterSelectScene : GameScene
         Matrix4x4 proj = Matrix4x4.CreateOrthographicOffCenter(0f, width, height, 0f, -1f, 1f);
 
         const float totalW = 920f;
-        const float totalH = 520f;
+        const float totalH = 580f;
         float ox = MathF.Floor((width - totalW) * 0.5f);
         float oy = MathF.Floor((height - totalH) * 0.5f) + 10f;
 
         RectangleF mainCard = new(ox, oy, totalW, totalH);
-        RectangleF stageCard = new(ox + 308f, oy + 68f, 268f, 384f);
-        RectangleF rightCard = new(ox + 592f, oy + 68f, 306f, 384f);
+        RectangleF stageCard = new(ox + 308f, oy + 68f, 268f, 452f);
+        RectangleF rightCard = new(ox + 592f, oy + 68f, 306f, 452f);
         RectangleF statusPill = new(ox + 22f, oy + totalH - 46f, totalW - 44f, 30f);
 
         // Pass 1: the menus' shared living backdrop (docs/art/menu-ui.md rule 15)
@@ -315,16 +377,20 @@ public sealed class CharacterSelectScene : GameScene
 
         if (_isCreatorMode)
         {
-            _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _freshStartBounds, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
+            _uiSkin.DrawCard(spriteBatch, in _appearanceCard, CarbonUiPalette.BorderSubtle, bodyAlpha: 234);
+            _uiSkin.DrawInset(spriteBatch, in _loreStrip, CarbonUiPalette.SlotFill, CarbonUiPalette.BorderSubtle);
+            for (int row = 0; row < this.ShownOptionRows; row++)
+            {
+                if (row == BodyRow && this.BodyUsesToggle)
+                {
+                    _bodyToggle.DrawSkin(spriteBatch, _uiSkin);
+                }
+                else
+                {
+                    _rows[row].DrawSkin(spriteBatch, _uiSkin);
+                }
+            }
 
-            _hairPrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _hairNextBtn.DrawSkin(spriteBatch, _uiSkin);
-            _hColPrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _hColNextBtn.DrawSkin(spriteBatch, _uiSkin);
-            _facePrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _faceNextBtn.DrawSkin(spriteBatch, _uiSkin);
-            _skinPrevBtn.DrawSkin(spriteBatch, _uiSkin);
-            _skinNextBtn.DrawSkin(spriteBatch, _uiSkin);
             _randomizeBtn.DrawSkin(spriteBatch, _uiSkin);
             _createNameField.DrawSkin(spriteBatch, _uiSkin);
             _createButton.DrawSkin(spriteBatch, _uiSkin);
@@ -339,7 +405,7 @@ public sealed class CharacterSelectScene : GameScene
             {
                 bool occupied = i < _roster.Count;
                 bool sel = occupied && i == _roster.SelectedIndex;
-                ColorRgba border = sel ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle;
+                ColorRgba border = sel ? CarbonUiPalette.BorderActive : i == _hoveredSlot ? MenuPalette.HoverBorder : CarbonUiPalette.BorderSubtle;
                 ColorRgba body = sel ? CarbonUiPalette.SlotSelectedFill : new ColorRgba(CarbonUiPalette.SlotFill.R, CarbonUiPalette.SlotFill.G, CarbonUiPalette.SlotFill.B, occupied ? (byte)234 : (byte)175);
                 _uiSkin.DrawPanel(spriteBatch, UiPanelStyle.DoubleCard, in _slotBounds[i], body, border);
                 if (occupied)
@@ -365,16 +431,28 @@ public sealed class CharacterSelectScene : GameScene
 
         // Pass 3: Live Vector Hero Pedestal, Portraits & Cursor
         _geometryBatch.Begin(proj);
-        Direction8 previewDir = s_turnDirs[_turnIndex];
+        Direction8 previewDir = _turntable.Facing;
         float stageCx = stageCard.X + (stageCard.Width * 0.5f);
-        float stageCy = stageCard.Y + 240f;
+        float stageCy = stageCard.Y + 270f;
+        _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 52f, new ColorRgba(212, 186, 130, 18), 26);
         _geometryBatch.FillCircle(new Vector2(stageCx, stageCy), 44f, new ColorRgba(6, 10, 18, 145), 22);
         _geometryBatch.DrawCircle(new Vector2(stageCx, stageCy), 45f, CarbonUiPalette.BorderOuter, 22, 1.8f);
 
-        byte previewPreset = _isCreatorMode || !_roster.HasSelection
-            ? _appearance.Preset
-            : _roster.Heroes[_roster.SelectedIndex].AppearancePreset;
-        if (_vectorArt is not null && _vectorArt.TryGetCharacter(previewPreset, out CompiledVectorRig? stageRig))
+        // Turntable facing: four dots under the pedestal, the current facing lit.
+        for (int f = 0; f < HeroTurntable.FacingCount; f++)
+        {
+            Vector2 dot = new(stageCx - 21f + (f * 14f), stageCy + 68f);
+            bool lit = f == _turntable.Index;
+            _geometryBatch.FillCircle(dot, lit ? 3.5f : 2.5f, lit ? CarbonUiPalette.BorderActive : CarbonUiPalette.BorderSubtle, segments: 10);
+        }
+
+        CharacterLook previewLook = _isCreatorMode || !_roster.HasSelection
+            ? _appearance.Look
+            : _roster.Heroes[_roster.SelectedIndex].Look;
+        RaceCatalog? races = _session.Races.Current;
+        if (_vectorArt is not null &&
+            CharacterLookResolver.TryResolve(_vectorArt, races, previewLook, out CompiledVectorRig? stageRig, out CharacterPalette stagePalette) &&
+            stageRig is not null)
         {
             CompiledItemVectorArt? weaponArt = null;
             VisualEquipmentLoadout previewLoadout = default;
@@ -408,7 +486,7 @@ public sealed class CharacterSelectScene : GameScene
                 equippedItem: weaponArt,
                 action: default,
                 swingTimer: 0f,
-                appearancePreset: previewPreset,
+                palette: stagePalette,
                 equipment: previewLoadout,
                 art: _vectorArt);
         }
@@ -416,12 +494,55 @@ public sealed class CharacterSelectScene : GameScene
         if (_isCreatorMode)
         {
             _createNameField.DrawCursorGeometry(_geometryBatch, _font);
+            for (int row = 0; row < this.ShownOptionRows; row++)
+            {
+                if (row == BodyRow && this.BodyUsesToggle)
+                {
+                    _bodyToggle.DrawOverlay(_geometryBatch);
+                }
+                else
+                {
+                    _rows[row].DrawOverlay(_geometryBatch);
+                }
+            }
+
+            _randomizeBtn.DrawOverlay(_geometryBatch);
+            _createButton.DrawOverlay(_geometryBatch);
+            if (_roster.Count > 0)
+            {
+                _backToRosterButton.DrawOverlay(_geometryBatch);
+            }
         }
-        else if (_vectorArt is not null)
+        else
+        {
+            for (int i = _roster.Count; i < CharacterRoster.MaxHeroes; i++)
+            {
+                // An empty slot invites a new hero: a "+" where the portrait would be.
+                RectangleF b = _slotBounds[i];
+                Vector2 c = new(b.X + 36f, b.Y + 38f);
+                ColorRgba plus = i == _hoveredSlot ? CarbonUiPalette.BorderActive : MenuPalette.Icon;
+                _geometryBatch.FillRectangle(new RectangleF(c.X - 9f, c.Y - 1.5f, 18f, 3f), plus);
+                _geometryBatch.FillRectangle(new RectangleF(c.X - 1.5f, c.Y - 9f, 3f, 18f), plus);
+            }
+
+            if (_roster.HasFreeSlot)
+            {
+                _openCreatorButton.DrawOverlay(_geometryBatch);
+            }
+
+            _enterWorldButton.DrawOverlay(_geometryBatch);
+        }
+
+        _turnLeftBtn.DrawOverlay(_geometryBatch);
+        _turnRightBtn.DrawOverlay(_geometryBatch);
+        _logoutButton.DrawOverlay(_geometryBatch);
+
+        if (!_isCreatorMode && _vectorArt is not null)
         {
             for (int i = 0; i < _roster.Count; i++)
             {
-                if (_vectorArt.TryGetCharacter(_roster.Heroes[i].AppearancePreset, out CompiledVectorRig? cardRig))
+                if (CharacterLookResolver.TryResolve(_vectorArt, races, _roster.Heroes[i].Look, out CompiledVectorRig? cardRig, out CharacterPalette cardPalette) &&
+                    cardRig is not null)
                 {
                     RectangleF b = _slotBounds[i];
                     VectorRigRenderer.DrawPortraitRig(
@@ -432,7 +553,7 @@ public sealed class CharacterSelectScene : GameScene
                         Direction8.South,
                         "idle",
                         _elapsed + (i * 0.25f),
-                        appearancePreset: _roster.Heroes[i].AppearancePreset,
+                        palette: cardPalette,
                         art: _vectorArt);
                 }
             }
@@ -448,7 +569,10 @@ public sealed class CharacterSelectScene : GameScene
             ? GameText.Get("character.header.creator")
             : _headerText.Format("character.header.roster", new TextArg("count", _roster.Count), new TextArg("max", CharacterRoster.MaxHeroes));
         spriteBatch.DrawOutlinedString(_font, header, new Vector2(ox + 22f, oy + 18f), CarbonUiPalette.TextWarm, black, 2, 1.5f);
-        spriteBatch.DrawOutlinedString(_font, _netText.Format("character.connection", new TextArg("status", _session.ConnectionLabel)), new Vector2(ox + 686f, oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
+        // Right-aligned against Log out so a longer translation never runs under the button.
+        string connection = _netText.Format("character.connection", new TextArg("status", _session.ConnectionLabel));
+        TextMeasureResult connectionSize = _font.MeasureString(connection, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(_font, connection, new Vector2(MathF.Floor(_logoutButton.Bounds.X - 14f - connectionSize.Width), oy + 22f), CarbonUiPalette.TextMuted, black, 1, 1f);
 
         string stageTitle = GameText.Get("character.stage");
         TextMeasureResult stSize = _font.MeasureString(stageTitle, TextLayoutOptions.Default, 1f);
@@ -456,27 +580,28 @@ public sealed class CharacterSelectScene : GameScene
 
         if (_isCreatorMode)
         {
-            spriteBatch.DrawOutlinedString(_font, GameText.Get("character_creator.fresh_start"), new Vector2(_freshStartBounds.X + 16f, _freshStartBounds.Y + 16f), CarbonUiPalette.TextWarm, black, 1, 1.25f);
+            // A slimmer lore strip under the name: the fresh-start note (ADR-030) in small type.
+            spriteBatch.DrawOutlinedString(_font, GameText.Get("character_creator.fresh_start"), new Vector2(_loreStrip.X + 12f, _loreStrip.Y + 10f), CarbonUiPalette.TextWarm, black, 1, 1f);
             for (int line = 0; line < s_freshStartLines.Length; line++)
             {
-                string text = CarbonUiSkin.TruncateToWidth(_font, GameText.Get(s_freshStartLines[line]), _freshStartBounds.Width - 32f, 1f);
-                spriteBatch.DrawOutlinedString(_font, text, new Vector2(_freshStartBounds.X + 16f, _freshStartBounds.Y + 58f + (line * 30f)), CarbonUiPalette.TextMuted, black, 1, 1f);
+                string text = CarbonUiSkin.TruncateToWidth(_font, GameText.Get(s_freshStartLines[line]), _loreStrip.Width - 24f, 1f);
+                spriteBatch.DrawOutlinedString(_font, text, new Vector2(_loreStrip.X + 12f, _loreStrip.Y + 34f + (line * 21f)), CarbonUiPalette.TextMuted, black, 1, 1f);
             }
 
-            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(rightCard.X + 16f, rightCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _hairText.Format("character.appearance.hair", new TextArg("value", GameText.Get(s_hairStyles[_appearance.HairStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 49f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _toneText.Format("character.appearance.hair_color", new TextArg("value", GameText.Get(s_hairColors[_appearance.HairColor]))), new Vector2(rightCard.X + 52f, rightCard.Y + 83f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _eyesText.Format("character.appearance.eyes", new TextArg("value", GameText.Get(s_faceStyles[_appearance.FaceStyle]))), new Vector2(rightCard.X + 52f, rightCard.Y + 117f), CarbonUiPalette.TextPrimary, black, 1, 1f);
-            spriteBatch.DrawOutlinedString(_font, _skinText.Format("character.appearance.skin", new TextArg("value", GameText.Get(s_skinTones[_appearance.SkinTone]))), new Vector2(rightCard.X + 52f, rightCard.Y + 151f), CarbonUiPalette.TextPrimary, black, 1, 1f);
+            spriteBatch.DrawOutlinedString(_font, GameText.Get("character.appearance"), new Vector2(_appearanceCard.X + 16f, _appearanceCard.Y + 14f), CarbonUiPalette.TextWarm, black, 1, 1f);
+            this.SyncRows();
+            for (int row = 0; row < this.ShownOptionRows; row++)
+            {
+                if (row == BodyRow && this.BodyUsesToggle)
+                {
+                    _bodyToggle.DrawText(spriteBatch, _font);
+                }
+                else
+                {
+                    _rows[row].DrawText(spriteBatch, _font);
+                }
+            }
 
-            _hairPrevBtn.DrawText(spriteBatch, _font);
-            _hairNextBtn.DrawText(spriteBatch, _font);
-            _hColPrevBtn.DrawText(spriteBatch, _font);
-            _hColNextBtn.DrawText(spriteBatch, _font);
-            _facePrevBtn.DrawText(spriteBatch, _font);
-            _faceNextBtn.DrawText(spriteBatch, _font);
-            _skinPrevBtn.DrawText(spriteBatch, _font);
-            _skinNextBtn.DrawText(spriteBatch, _font);
             _randomizeBtn.DrawText(spriteBatch, _font);
             _createNameField.DrawText(spriteBatch, _font);
             _createButton.DrawText(spriteBatch, _font);
@@ -500,7 +625,7 @@ public sealed class CharacterSelectScene : GameScene
                 }
                 else
                 {
-                    spriteBatch.DrawOutlinedString(_font, GameText.Get("character.empty_slot"), new Vector2(b.X + 26f, b.Y + 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
+                    spriteBatch.DrawOutlinedString(_font, CarbonUiSkin.TruncateToWidth(_font, GameText.Get("character.empty_slot"), b.Width - 82f, 1f), new Vector2(b.X + 70f, b.Y + 30f), i == _hoveredSlot ? CarbonUiPalette.TextWarm : CarbonUiPalette.TextMuted, black, 1, 1f);
                 }
             }
 
@@ -526,11 +651,13 @@ public sealed class CharacterSelectScene : GameScene
         _turnRightBtn.DrawText(spriteBatch, _font);
         _logoutButton.DrawText(spriteBatch, _font);
 
-        ColorRgba statusColor = _requests.StatusIsError
-            ? new ColorRgba(235, 130, 130, 255)
-            : CarbonUiPalette.TextPrimary;
+        ColorRgba statusColor = _requests.StatusIsError ? MenuPalette.ErrorText : CarbonUiPalette.TextPrimary;
         string status = CarbonUiSkin.TruncateToWidth(_font, _requests.StatusMessage, statusPill.Width - 20f, 1f);
         spriteBatch.DrawOutlinedString(_font, status, new Vector2(statusPill.X + 10f, statusPill.Y + 7f), statusColor, black, 1, 1f);
+
+        string footer = CarbonUiSkin.TruncateToWidth(_font, GameText.Get(_isCreatorMode ? "character.footer.creator" : "character.footer.roster"), width - 32f, 1f);
+        TextMeasureResult footerSize = _font.MeasureString(footer, TextLayoutOptions.Default, 1f);
+        spriteBatch.DrawOutlinedString(_font, footer, new Vector2(MathF.Floor((width - footerSize.Width) * 0.5f), height - 30f), CarbonUiPalette.TextMuted, black, 1, 1f);
         spriteBatch.End();
 
         base.Render(context, spriteBatch, dt);
@@ -561,6 +688,15 @@ public sealed class CharacterSelectScene : GameScene
     private void UpdateRosterMode(KeyboardSnapshot kb, Vector2 mousePos, bool leftDown, bool leftPressed, bool busy)
     {
         _createNameField.IsFocused = false;
+        _hoveredSlot = -1;
+        for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
+        {
+            if (_slotBounds[i].Contains(mousePos))
+            {
+                _hoveredSlot = i;
+            }
+        }
+
         if (leftPressed && !busy)
         {
             for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
@@ -578,7 +714,7 @@ public sealed class CharacterSelectScene : GameScene
         _enterWorldButton.IsEnabled = !busy && hasSelection;
         _openCreatorButton.IsEnabled = !busy && _roster.HasFreeSlot;
 
-        if (_roster.HasFreeSlot && _openCreatorButton.Update(mousePos, leftDown, leftPressed))
+        if (_roster.HasFreeSlot && _openCreatorButton.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             _isCreatorMode = true;
             _createNameField.IsFocused = true;
@@ -586,69 +722,76 @@ public sealed class CharacterSelectScene : GameScene
         }
 
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
-        if ((_enterWorldButton.Update(mousePos, leftDown, leftPressed) || enterKey) && hasSelection)
+        if ((_enterWorldButton.Update(mousePos, leftDown, leftPressed, _frameDt) || enterKey) && hasSelection)
         {
             _requests.EnterWorld(_roster.Selected);
         }
     }
 
-    private void UpdateCreatorMode(KeyboardSnapshot kb, Vector2 mousePos, bool leftDown, bool leftPressed, float dt, bool busy)
+    private void UpdateCreatorMode(KeyboardSnapshot kb, Vector2 mousePos, float scrollY, bool leftDown, bool leftPressed, float dt, bool busy)
     {
         _createNameField.Update(dt, mousePos, leftPressed && !busy);
-        _hairPrevBtn.IsEnabled = !busy;
-        _hairNextBtn.IsEnabled = !busy;
-        _hColPrevBtn.IsEnabled = !busy;
-        _hColNextBtn.IsEnabled = !busy;
-        _facePrevBtn.IsEnabled = !busy;
-        _faceNextBtn.IsEnabled = !busy;
-        _skinPrevBtn.IsEnabled = !busy;
-        _skinNextBtn.IsEnabled = !busy;
+        this.SyncRows();
+        for (int row = 0; row < VisibleOptionRows; row++)
+        {
+            _rows[row].IsEnabled = !busy && this.RowChoiceCount(row) > 1;
+            _rows[row].IsFocused = _pickerFocus == row;
+        }
+
+        _bodyToggle.IsEnabled = !busy;
+        _bodyToggle.IsFocused = _pickerFocus == BodyRow;
+
         _randomizeBtn.IsEnabled = !busy;
         _createButton.IsEnabled = !busy && _roster.HasFreeSlot;
         _backToRosterButton.IsEnabled = !busy && _roster.Count > 0;
 
-        if (_hairPrevBtn.Update(mousePos, leftDown, leftPressed))
+        if (scrollY != 0f && _optionsBounds.Contains(mousePos))
         {
-            _appearance.CycleHairStyle(-1);
-        }
-        else if (_hairNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleHairStyle(1);
+            this.ScrollOptions(scrollY > 0f ? -1 : 1);
         }
 
-        if (_hColPrevBtn.Update(mousePos, leftDown, leftPressed))
+        if (kb.IsKeyPressed(Key.Tab) && this.ShownOptionRows > 0)
         {
-            _appearance.CycleHairColor(-1);
-        }
-        else if (_hColNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleHairColor(1);
-        }
-
-        if (_facePrevBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleFaceStyle(-1);
-        }
-        else if (_faceNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleFaceStyle(1);
+            // Tab walks the selector rows then the name: rows 0..n-1, then -1 (the name field).
+            bool back = kb.IsKeyDown(Key.ShiftLeft) || kb.IsKeyDown(Key.ShiftRight);
+            int count = this.ShownOptionRows + 1;
+            int at = _pickerFocus < 0 ? this.ShownOptionRows : _pickerFocus;
+            at = (((at + (back ? -1 : 1)) % count) + count) % count;
+            _pickerFocus = at == this.ShownOptionRows ? -1 : at;
+            _createNameField.IsFocused = _pickerFocus < 0;
         }
 
-        if (_skinPrevBtn.Update(mousePos, leftDown, leftPressed))
+        if (leftPressed && _createNameField.Bounds.Contains(mousePos))
         {
-            _appearance.CycleSkinTone(-1);
-        }
-        else if (_skinNextBtn.Update(mousePos, leftDown, leftPressed))
-        {
-            _appearance.CycleSkinTone(1);
+            _pickerFocus = -1;
         }
 
-        if (_randomizeBtn.Update(mousePos, leftDown, leftPressed))
+        for (int row = 0; row < this.ShownOptionRows; row++)
+        {
+            if (row == BodyRow && this.BodyUsesToggle)
+            {
+                // Two bodies: a toggle; choosing the other half is one step through the two.
+                if (_bodyToggle.Update(mousePos, leftPressed, dt))
+                {
+                    this.CycleRow(BodyRow, 1);
+                }
+
+                continue;
+            }
+
+            int step = _rows[row].Update(mousePos, leftDown, leftPressed, dt);
+            if (step != 0)
+            {
+                this.CycleRow(row, step);
+            }
+        }
+
+        if (_randomizeBtn.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             _appearance.Randomize(Random.Shared);
         }
 
-        if (_roster.Count > 0 && _backToRosterButton.Update(mousePos, leftDown, leftPressed))
+        if (_roster.Count > 0 && _backToRosterButton.Update(mousePos, leftDown, leftPressed, _frameDt))
         {
             _isCreatorMode = false;
             _createNameField.IsFocused = false;
@@ -656,10 +799,20 @@ public sealed class CharacterSelectScene : GameScene
         }
 
         bool enterKey = !busy && (kb.IsKeyPressed(Key.Enter) || kb.IsKeyPressed(Key.KeypadEnter));
-        if (_createButton.Update(mousePos, leftDown, leftPressed) || (enterKey && _createNameField.IsFocused && _roster.HasFreeSlot))
+        if (_createButton.Update(mousePos, leftDown, leftPressed, _frameDt) || (enterKey && _createNameField.IsFocused && _roster.HasFreeSlot))
         {
-            _requests.Create(_createNameField.Text, _appearance.Preset);
+            _createAttempted = true;
+            if (AccountRules.HeroNameError(_createNameField.Text) is null)
+            {
+                _requests.Create(_createNameField.Text, _appearance.Look);
+            }
+            else
+            {
+                _createNameField.IsFocused = true;
+            }
         }
+
+        this.RefreshNameFeedback();
     }
 
     private void PollRequests(SceneContext context)
@@ -716,46 +869,48 @@ public sealed class CharacterSelectScene : GameScene
     private void LayoutControls(int width, int height)
     {
         const float totalW = 920f;
-        const float totalH = 520f;
+        const float totalH = 580f;
         float ox = MathF.Floor((width - totalW) * 0.5f);
         float oy = MathF.Floor((height - totalH) * 0.5f) + 10f;
 
         _logoutButton.Bounds = new RectangleF(ox + totalW - 122f, oy + 14f, 100f, 34f);
-        _turnLeftBtn.Bounds = new RectangleF(ox + 324f, oy + 404f, 112f, 32f);
-        _turnRightBtn.Bounds = new RectangleF(ox + 448f, oy + 404f, 112f, 32f);
+        _turnLeftBtn.Bounds = new RectangleF(ox + 324f, oy + 472f, 112f, 32f);
+        _turnRightBtn.Bounds = new RectangleF(ox + 448f, oy + 472f, 112f, 32f);
 
         for (int i = 0; i < CharacterRoster.MaxHeroes; i++)
         {
             _slotBounds[i] = new RectangleF(ox + 22f, oy + 68f + (i * 84f), 270f, 76f);
         }
 
-        _openCreatorButton.Bounds = new RectangleF(ox + 22f, oy + 408f, 270f, 44f);
-        _enterWorldButton.Bounds = new RectangleF(ox + 608f, oy + 392f, 274f, 46f);
+        _openCreatorButton.Bounds = new RectangleF(ox + 22f, oy + 476f, 270f, 44f);
+        _enterWorldButton.Bounds = new RectangleF(ox + 608f, oy + 460f, 274f, 46f);
 
-        _freshStartBounds = new RectangleF(ox + 22f, oy + 68f, 270f, 384f);
+        // Creator: selector rows on the left (race, body type, the race's options; room to spare), the hero in the
+        // middle, the name, Create and a slim lore strip on the right (docs/art/menu-ui.md rule 18).
+        _appearanceCard = new RectangleF(ox + 22f, oy + 68f, 270f, 452f);
+        for (int row = 0; row < VisibleOptionRows; row++)
+        {
+            _rows[row].Bounds = new RectangleF(_appearanceCard.X + 16f, _appearanceCard.Y + 44f + (row * SelectorRowStep), _appearanceCard.Width - 32f, 28f);
+        }
+
+        _bodyToggle.Bounds = _rows[BodyRow].Bounds;
+        _optionsBounds = new RectangleF(_appearanceCard.X + 16f, _appearanceCard.Y + 44f + (FirstOptionRow * SelectorRowStep), _appearanceCard.Width - 32f, VisibleAppearanceRows * SelectorRowStep);
+        _randomizeBtn.Bounds = new RectangleF(_appearanceCard.X + 16f, _appearanceCard.Bottom - 48f, _appearanceCard.Width - 32f, 32f);
 
         float rx = ox + 592f;
         float ry = oy + 68f;
-        _hairPrevBtn.Bounds = new RectangleF(rx + 16f, ry + 44f, 28f, 26f);
-        _hairNextBtn.Bounds = new RectangleF(rx + 262f, ry + 44f, 28f, 26f);
-        _hColPrevBtn.Bounds = new RectangleF(rx + 16f, ry + 78f, 28f, 26f);
-        _hColNextBtn.Bounds = new RectangleF(rx + 262f, ry + 78f, 28f, 26f);
-        _facePrevBtn.Bounds = new RectangleF(rx + 16f, ry + 112f, 28f, 26f);
-        _faceNextBtn.Bounds = new RectangleF(rx + 262f, ry + 112f, 28f, 26f);
-        _skinPrevBtn.Bounds = new RectangleF(rx + 16f, ry + 146f, 28f, 26f);
-        _skinNextBtn.Bounds = new RectangleF(rx + 262f, ry + 146f, 28f, 26f);
-        _randomizeBtn.Bounds = new RectangleF(rx + 16f, ry + 184f, 274f, 32f);
-
-        _createNameField.Bounds = new RectangleF(rx + 16f, ry + 250f, 274f, 36f);
+        _createNameField.Bounds = new RectangleF(rx + 16f, ry + 48f, 274f, 38f);
         if (_roster.Count > 0)
         {
-            _createButton.Bounds = new RectangleF(rx + 16f, ry + 302f, 182f, 44f);
-            _backToRosterButton.Bounds = new RectangleF(rx + 206f, ry + 302f, 84f, 44f);
+            _createButton.Bounds = new RectangleF(rx + 16f, ry + 120f, 182f, 44f);
+            _backToRosterButton.Bounds = new RectangleF(rx + 206f, ry + 120f, 84f, 44f);
         }
         else
         {
-            _createButton.Bounds = new RectangleF(rx + 16f, ry + 302f, 274f, 44f);
+            _createButton.Bounds = new RectangleF(rx + 16f, ry + 120f, 274f, 44f);
         }
+
+        _loreStrip = new RectangleF(rx + 16f, ry + 184f, 274f, 252f);
     }
 
     private void BeginLogout() => _requests.SignOut();
@@ -794,7 +949,36 @@ public sealed class CharacterSelectScene : GameScene
     {
         if (_isCreatorMode && !_requests.IsCreating && !_requests.IsEnteringWorld && !_requests.IsSigningOut)
         {
-            _createNameField.AppendChar(ch);
+            if (!_createNameField.AppendChar(ch))
+            {
+                // Explain a refused key (a space, an accented letter) where the player is looking.
+                _nameRejectedFor = 3f;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The line under the hero name: why a key was refused (for a few seconds), the rule after a failed create, or a
+    /// check once the name is one the server will take.
+    /// </summary>
+    private void RefreshNameFeedback()
+    {
+        string? error = AccountRules.HeroNameError(_createNameField.Text);
+        if (_nameRejectedFor > 0f)
+        {
+            _createNameField.SetFeedback(FieldFeedback.Error, GameText.Get("character.name.chars"));
+        }
+        else if (error is not null && _createAttempted)
+        {
+            _createNameField.SetFeedback(FieldFeedback.Error, GameText.Get(error));
+        }
+        else if (error is null)
+        {
+            _createNameField.SetFeedback(FieldFeedback.Success, GameText.Get("character.name.ok"));
+        }
+        else
+        {
+            _createNameField.SetFeedback(FieldFeedback.None, string.Empty);
         }
     }
 
@@ -813,4 +997,136 @@ public sealed class CharacterSelectScene : GameScene
             _boundInput = null;
         }
     }
+
+    private static MenuPicker[] CreatePickers()
+    {
+        MenuPicker[] rows = new MenuPicker[VisibleOptionRows];
+        for (int i = 0; i < rows.Length; i++)
+        {
+            rows[i] = new MenuPicker(1);
+        }
+
+        return rows;
+    }
+
+    /// <summary>Gets whether the body row is a two-state toggle: the race has exactly two bodies.</summary>
+    private bool BodyUsesToggle => _appearance.Race is { Bodies.Count: 2 };
+
+    /// <summary>Shows the look in the selector rows: label and value, "n/N", and the body toggle's two names.</summary>
+    private void SyncRows()
+    {
+        for (int row = 0; row < this.ShownOptionRows; row++)
+        {
+            MenuPicker picker = _rows[row];
+            int choices = this.RowChoiceCount(row);
+            picker.SetCount(Math.Max(1, choices));
+            picker.Index = this.RowChoiceIndex(row);
+            (string labelKey, string valueKey) = this.RowKeys(row);
+            picker.Text = _optionRowText[row].Format("appearance.row", new TextArg("label", GameText.Get(labelKey)), new TextArg("value", GameText.Get(valueKey)));
+            picker.IndexText = choices > 1
+                ? _traitIndexText[row].Format("character.appearance.index", new TextArg("index", picker.Index + 1), new TextArg("count", choices))
+                : string.Empty;
+        }
+
+        if (this.BodyUsesToggle)
+        {
+            RaceDefinition race = _appearance.Race!;
+            _bodyToggle.First = GameText.Get(race.Bodies[0].NameKey);
+            _bodyToggle.Second = GameText.Get(race.Bodies[1].NameKey);
+            _bodyToggle.Selected = this.RowChoiceIndex(BodyRow);
+        }
+    }
+
+    /// <summary>Gets the label and value keys of selector row <paramref name="row"/>, all from <c>races.json</c> (behaviour tests).</summary>
+    internal (string LabelKey, string ValueKey) RowKeys(int row)
+    {
+        RaceDefinition race = _appearance.Race!;
+        if (row == RaceRow)
+        {
+            return ("character_creator.race", race.NameKey);
+        }
+
+        if (row == BodyRow)
+        {
+            return ("character_creator.body", _appearance.Body!.NameKey);
+        }
+
+        int option = row - FirstOptionRow + _optionScroll;
+        AppearanceOptionDefinition definition = race.Options[option];
+        return (definition.NameKey, definition.Choices[_appearance.GetChoice(option)].NameKey);
+    }
+
+    /// <summary>How many values selector row <paramref name="row"/> cycles through (0 when the row is not shown).</summary>
+    private int RowChoiceCount(int row)
+    {
+        RaceDefinition? race = _appearance.Race;
+        if (race is null || row >= this.ShownOptionRows)
+        {
+            return 0;
+        }
+
+        return row switch
+        {
+            RaceRow => _appearance.Catalog!.Races.Count,
+            BodyRow => race.Bodies.Count,
+            _ => race.Options[row - FirstOptionRow + _optionScroll].Choices.Count,
+        };
+    }
+
+    /// <summary>Where the current pick of selector row <paramref name="row"/> sits among its choices (0-based).</summary>
+    private int RowChoiceIndex(int row)
+    {
+        RaceDefinition? race = _appearance.Race;
+        if (race is null)
+        {
+            return 0;
+        }
+
+        switch (row)
+        {
+            case RaceRow:
+                List<RaceDefinition> races = _appearance.Catalog!.Races;
+                for (int i = 0; i < races.Count; i++)
+                {
+                    if (ReferenceEquals(races[i], race))
+                    {
+                        return i;
+                    }
+                }
+
+                return 0;
+            case BodyRow:
+                for (int i = 0; i < race.Bodies.Count; i++)
+                {
+                    if (ReferenceEquals(race.Bodies[i], _appearance.Body))
+                    {
+                        return i;
+                    }
+                }
+
+                return 0;
+            default:
+                return _appearance.GetChoice(row - FirstOptionRow + _optionScroll);
+        }
+    }
+
+    private void CycleRow(int row, int step)
+    {
+        switch (row)
+        {
+            case RaceRow:
+                _appearance.CycleRace(step);
+                _optionScroll = 0;
+                break;
+            case BodyRow:
+                _appearance.CycleBody(step);
+                break;
+            default:
+                _appearance.CycleOption(row - FirstOptionRow + _optionScroll, step);
+                break;
+        }
+    }
+
+    private void ScrollOptions(int step) =>
+        _optionScroll = Math.Clamp(_optionScroll + step, 0, Math.Max(0, _appearance.OptionCount - VisibleAppearanceRows));
 }

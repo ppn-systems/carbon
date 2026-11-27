@@ -3,6 +3,7 @@
 using System;
 using Carbon.Abstractions.World;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 using Xunit.Abstractions;
@@ -143,20 +144,11 @@ public sealed class DeltaColumnPoolTests(ITestOutputHelper output)
         DeltaColumnPool pool = new();
         using EntityDeltaBatch packet = new();
         EntityDeltaEntry[][] observers = [Entries(12), Entries(40), Entries(40), Entries(73)];
-        for (int i = 0; i < 64; i++)
-        {
-            SendOnce(pool, packet, observers);
-        }
+        // Once flaky without evidence (audit round 3, "Flaky guard"): the probe warms up and reports what the window saw.
+        AllocationResult window = AllocationProbe.Measure(1_000, warmupIterations: 1_000, tick => SendOnce(pool, packet, observers));
+        output.WriteLine($"4 batches per iteration: {window}");
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int tick = 0; tick < 1_000; tick++)
-        {
-            SendOnce(pool, packet, observers);
-        }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        output.WriteLine($"{allocated} bytes over 4,000 batches");
-        allocated.Should().Be(0, "steady-state delta batches must reuse their columns");
+        window.Bytes.Should().Be(0, $"steady-state delta batches must reuse their columns ({window})");
     }
 
     private static void SendOnce(DeltaColumnPool pool, EntityDeltaBatch packet, EntityDeltaEntry[][] observers)

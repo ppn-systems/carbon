@@ -78,6 +78,9 @@ internal sealed class RegisterScene : MenuScene
     internal RegisterFocus Focus => _form.Focus;
 
     /// <inheritdoc/>
+    protected override string? FooterHint => GameText.Get("login.footer.form");
+
+    /// <inheritdoc/>
     protected override string? Header => GameText.Get("login.header.register");
 
     /// <inheritdoc/>
@@ -86,7 +89,7 @@ internal sealed class RegisterScene : MenuScene
         const float panelW = 500f;
         const float panelH = 520f;
         float px = MathF.Floor((width - panelW) * 0.5f);
-        float py = MathF.Floor((height - panelH) * 0.5f) + 40f;
+        float py = PanelTop(height, panelH);
         _card = new RectangleF(px, py, panelW, panelH);
 
         float fx = px + 32f;
@@ -230,9 +233,9 @@ internal sealed class RegisterScene : MenuScene
             return;
         }
 
-        _usernameField.AppendChar(ch);
-        _passwordField.AppendChar(ch);
-        _confirmField.AppendChar(ch);
+        _ = _usernameField.AppendChar(ch);
+        _ = _passwordField.AppendChar(ch);
+        _ = _confirmField.AppendChar(ch);
     }
 
     /// <inheritdoc/>
