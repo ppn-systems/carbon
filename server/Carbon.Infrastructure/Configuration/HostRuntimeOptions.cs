@@ -39,12 +39,6 @@ public sealed class HostRuntimeOptions
     /// </summary>
     public int RoadPrewarmWorkers { get; init; } = 2;
 
-    /// <summary>
-    /// Gets the chunks beyond a player's load radius whose road sites are planned ahead (<c>CARBON_ROAD_PREWARM_MARGIN</c>,
-    /// default 2; ADR-045 D1).
-    /// </summary>
-    public int RoadPrewarmMarginChunks { get; init; } = 2;
-
     /// <summary>Gets or sets the WebSocket listen host binding (<c>localhost</c> by default, or <c>+</c>).</summary>
     public string WebSocketHost { get; init; } = "localhost";
 
@@ -138,10 +132,6 @@ public sealed class HostRuntimeOptions
             ? rw
             : 2;
 
-        int roadMargin = int.TryParse(Environment.GetEnvironmentVariable("CARBON_ROAD_PREWARM_MARGIN"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int rm) && rm >= 0
-            ? rm
-            : 2;
-
         string wsHost = Environment.GetEnvironmentVariable("CARBON_WS_HOST") is { Length: > 0 } host
             ? host.Trim()
             : "localhost";
@@ -163,7 +153,6 @@ public sealed class HostRuntimeOptions
             WorldSeed = seed,
             TickRate = tickRate,
             RoadPrewarmWorkers = roadWorkers,
-            RoadPrewarmMarginChunks = roadMargin,
             WebSocketHost = wsHost,
             WebSocketPort = wsPort,
             WebSocketPath = wsPath,

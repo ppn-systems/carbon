@@ -54,8 +54,8 @@ What this shows:
 ## Decision
 
 1. **D1 — Prewarm road sites.** `UpdateAroundPosition` calls a new `PrewarmRoads` next to `PrewarmHydrology`. It starts,
-   on the thread pool, the build of every road site that chunks within `chunkRadius + K` of the centre would query. `K`
-   comes from config and defaults to two chunks; a site is 7 chunks wide. The builds start only for sites not cached and not in flight. The prewarm
+   on the thread pool, the build of every road site that chunks within `chunkRadius` of the centre would query; a site
+   is 7 chunks wide. *Amended:* the margin `K` beyond the load radius was removed (see Consequences). The builds start only for sites not cached and not in flight. The prewarm
    happens once per chunk-boundary crossing, as `Stream` does.
 2. **D2 — One build per site, joined, never duplicated.** The site cache holds `Lazy<RoadSiteData>` with
    `ExecutionAndPublication`, as hydrology does. If a chunk needs a site whose prewarm has not finished, the tick
@@ -134,9 +134,9 @@ What this shows:
   the player crosses into the neighbouring chunks, a few seconds ahead at walking speed. A sprint or a teleport into
   unexplored land can still join an in-flight build and wait for its rest.
 - Background CPU use rises a little: sites near a player are planned whether or not the player ends up there.
-- The margin `K` (D1) adds little. `RoadNetwork.Query` already reads two sites (about 14 chunks) beyond any rectangle, so
-  the road sites a one-chunk step needs are almost always queued already without it. A mutation that ignores `K`
-  survives every guard. It stays configurable, default 2, as decided.
+- Query already reads 2 sites beyond any rectangle (about 14 chunks), so no extra margin is needed; K removed. A
+  mutation that ignored `K` survived every guard. `RoadPrewarmTests` pins the fact instead: a walk at the server's
+  top sprint speed never builds a road site on the tick.
 - Generator code gains a second concurrent cache. D2's `Lazy` and D3's tests keep it deterministic.
 - The host stops the generator's background builds on shutdown (D10).
 - Generators with the same seed no longer share regions (D7).
@@ -160,6 +160,6 @@ In small PRs, each characterised first:
 ## Decisions taken
 
 - Joining the in-flight build (D2) is accepted; the no-roads fallback is rejected for determinism.
-- `N` = 2 and `K` = 2 chunks, both from config.
+- `N` = 2, from config. `K` was removed (D1).
 - The hydrology cache becomes per world (D7), instead of pinning inside a process-wide cache.
 - D9 (no world lock) and D10 (clean shutdown) were added on review.

@@ -6,6 +6,7 @@ using System.Threading;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Hydrology;
+using Carbon.Maps.Landmarks;
 using Carbon.Maps.Roads;
 using Carbon.Maps.Streaming;
 using FluentAssertions;
@@ -52,6 +53,39 @@ public sealed class RoadPrewarmTests(ITestOutputHelper output)
         roadBuilds.Should().Be(0, "the road sites were planned in the background before the walk reached them");
         regionBuilds.Should().Be(0, "and so were the river regions their routes cross");
         generator.Roads.BackgroundSiteBuilds.Should().BeGreaterThan(0, "the walk did reach road sites, planned in the background");
+    }
+
+    [Fact]
+    public void UpdateAroundPosition_SprintingAtTopSpeed_NeverBuildsARoadSiteOnTheCallingThread()
+    {
+        // ADR-045 D1 (amended): the prewarm covers only the load radius, with no margin, because a road query reads two
+        // sites (about 14 chunks) beyond its rectangle. So even at the server's top speed the tick never plans a site.
+        // AuthoritativeWorld moves a sprinting player 450 units a second times its speed multiplier, and streams every
+        // 10 ticks at 30 Hz. A multiplier of 2 is well above what stats and effects reach.
+        const float sprintSpeed = 450f;
+        const float speedMultiplier = 2f;
+        const float secondsPerStreamingStep = 10f / 30f;
+        float stepPerAxis = sprintSpeed * speedMultiplier * secondsPerStreamingStep / MathF.Sqrt(2f);
+
+        ProceduralWorldGenerator generator = new(4410UL);
+        ChunkWorld2D world = new(generator, TileSize);
+        Vector2 position = new((world.SpawnTile.X + 0.5f) * TileSize, (world.SpawnTile.Y + 0.5f) * TileSize);
+        Step(world, position);
+
+        int roadsBefore = generator.Roads.SiteBuildsOnThisThread;
+        int backgroundBefore = generator.Roads.BackgroundSiteBuilds;
+        float distance = 4f * PointOfInterestResolver.SiteSize * TileSize; // four sites north-east, on each axis
+        int steps = (int)MathF.Ceiling(distance / stepPerAxis);
+        for (int i = 0; i < steps; i++)
+        {
+            position += new Vector2(stepPerAxis, -stepPerAxis);
+            Step(world, position);
+        }
+
+        int roadBuilds = generator.Roads.SiteBuildsOnThisThread - roadsBefore;
+        output.WriteLine($"{steps} sprint steps of {stepPerAxis:F0} units per axis: {roadBuilds} road sites built on the calling thread");
+        roadBuilds.Should().Be(0, "the prewarm of the load radius stays ahead of a player at top speed");
+        (generator.Roads.BackgroundSiteBuilds - backgroundBefore).Should().BeGreaterThan(0, "the sprint did reach new road sites");
     }
 
     // One streaming step with the server's radii, then the background builds it started run to completion, as they

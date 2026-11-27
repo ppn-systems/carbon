@@ -144,7 +144,7 @@ public static class Program
             statusEffects: gameData.StatusEffects,
             stamina: gameData.Stamina,
             logger: logger,
-            roadPrewarm: new RoadPrewarmOptions(options.RoadPrewarmWorkers, options.RoadPrewarmMarginChunks));
+            roadPrewarm: new RoadPrewarmOptions(options.RoadPrewarmWorkers));
         world.ApplyGameData(gameData.Economy, gameData.Needs, gameData.Food, gameData.Progression, gameData.StatusEffects, gameData.Stamina, gameData.Water, gameData.Props, gameData.Races);
         ServerGameData.BindHotReload(config, world);
         using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression, rememberTokenStore, () => world.Races)

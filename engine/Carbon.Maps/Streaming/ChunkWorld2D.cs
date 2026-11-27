@@ -661,14 +661,13 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             (chunkRadius + 8) * Chunk2D.Size,
             stream);
 
-        // 0b. ADR-045 D1: plan the road sites of the chunks a little beyond the load radius in the background, so the
-        // chunks this player walks into next find their roads built.
-        int roadRadius = chunkRadius + _generator.RoadPrewarm.MarginChunks;
+        // 0b. ADR-045 D1: plan the road sites of the loaded chunks in the background. A road query reads two sites (about
+        // 14 chunks) beyond its rectangle, so this also covers every chunk the player can walk into before the next step.
         _generator.PrewarmRoads(
-            (centerChunkX - roadRadius) * Chunk2D.Size,
-            (centerChunkY - roadRadius) * Chunk2D.Size,
-            ((centerChunkX + roadRadius + 1) * Chunk2D.Size) - 1,
-            ((centerChunkY + roadRadius + 1) * Chunk2D.Size) - 1,
+            (centerChunkX - chunkRadius) * Chunk2D.Size,
+            (centerChunkY - chunkRadius) * Chunk2D.Size,
+            ((centerChunkX + chunkRadius + 1) * Chunk2D.Size) - 1,
+            ((centerChunkY + chunkRadius + 1) * Chunk2D.Size) - 1,
             stream);
 
         // 1. Load the chunks in range; recycle those far away (their edits stay in the delta store).
