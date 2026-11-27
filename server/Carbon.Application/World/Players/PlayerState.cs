@@ -10,6 +10,7 @@ using Carbon.Economy.Currency;
 using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Maps.Hydrology;
 using Carbon.Simulation.ECS;
 using Carbon.Survival.Stamina;
 
@@ -93,4 +94,22 @@ internal sealed class PlayerState(
     /// except a respawn request is refused until the player asks to respawn.
     /// </summary>
     public bool IsDead { get; set; }
+
+    /// <summary>
+    /// Gets or sets the oxygen left in seconds of diving (ADR-032 D11); NaN until the first water tick fills it.
+    /// Not persisted: a player always enters the world with a full breath.
+    /// </summary>
+    public float OxygenSeconds { get; set; } = float.NaN;
+
+    /// <summary>Gets or sets how the player moves through the water under them, as of the last tick.</summary>
+    public SwimState SwimState { get; set; }
+
+    /// <summary>Gets or sets the depth tier under the player, as of the last tick.</summary>
+    public WaterDepthTier WaterTier { get; set; }
+
+    /// <summary>Gets or sets the oxygen percent last sent to the owner; -1 forces a send.</summary>
+    public int OxygenSyncedPercent { get; set; } = -1;
+
+    /// <summary>Gets or sets the swim state and tier last sent to the owner, packed as <c>(state &lt;&lt; 8) | tier</c>.</summary>
+    public int OxygenSyncedWater { get; set; } = -1;
 }

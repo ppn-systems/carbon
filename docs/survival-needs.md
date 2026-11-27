@@ -153,8 +153,8 @@ Speed penalties multiply: starving + exhausted + poisoned = 0.65 × 0.85 × 0.85
   survival data is the same bytes the server serves to clients; bad data stops the server at boot.
 - `EatActionSystem` then `NeedsSystem` are registered on the world simulation; every player entity gets
   `NeedsComponent.CreateFull`.
-- Each tick the player's activity comes from server state: Fighting (hit in the last 6 s) > Sprinting >
-  Walking (moving) > Idle. Swimming is not detected yet.
+- Each tick the player's activity comes from server state: Fighting (hit in the last 6 s) > Swimming (in Medium
+  water or deeper, ADR-032) > Sprinting > Walking (moving) > Idle.
 - Eating: using an edible consumable from the hotbar (the existing primary-action / `AttackInput` handler)
   calls `BeginEat`. The item stays reserved in its slot; moving or dropping it cancels the meal. On
   `MealCompletedEvent` one item is consumed and the slot change is sent. Monster damage interrupts the meal.

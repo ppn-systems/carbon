@@ -118,7 +118,7 @@ These rules are server-enforced through `BuildingService`, and the client previe
 
 - **New structure types** (append-only), each with `.cvg.json` art in the existing layered style (ADR-005):
   - `SandstoneWall` (16), `WoodTable` (17), `WoodShelf` (18), `MarketStall` (19, 2×1, striped canopy over produce crates) and `PlankDeck` (20, swamp deck over dark water).
-  - They have no placeable kits yet.
+  - Each has a placeable kit (`sandstone_wall`, `wood_table_kit`, `wood_shelf_kit`, `market_stall_kit`, `plank_deck`), crafted at the workbench, like the chest, bed, workbench and stove kits; `VillageStructureKitTests` checks that every structure a village can emit has one.
 - **Multi-tile art.** Structure art takes an optional `size: [w, h]`. Multi-tile art is drawn once at the anchor and rotated with the record by `VectorMeshBaker.StampFootprintShapes`. `wood_bed` (1×2), `workbench` (2×1) and `market_stall` (2×1) use it.
 - **Roofs.** `RoofRenderer` finds enclosed rooms from their walls (cached by `BuildingGrid.Revision`) and draws a roof in the style of the walls:
 

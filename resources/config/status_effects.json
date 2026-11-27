@@ -3,15 +3,16 @@
   "heavyHit": { "effect": "stunned", "minDamageFraction": 0.25 },
   "restedOnWake": { "effect": "rested", "minRestFraction": 0.95 },
   "effects": [
-    { "id": 1, "key": "poisoned", "icon": "status_poisoned", "category": "Debuff", "durationSeconds": 10, "stacking": "Stack", "maxStacks": 3, "tickIntervalSeconds": 2, "magnitude": 1, "lethal": false, "persist": true },
-    { "id": 2, "key": "slowed", "icon": "status_slowed", "category": "Debuff", "durationSeconds": 3, "stacking": "Strongest", "moveSpeedMultiplier": 0.6 },
-    { "id": 3, "key": "bleeding", "icon": "status_bleeding", "category": "Debuff", "durationSeconds": 6, "stacking": "Stack", "maxStacks": 5, "tickIntervalSeconds": 1, "magnitude": 0.75, "lethal": true, "persist": true },
+    { "id": 1, "key": "poisoned", "icon": "status_poisoned", "category": "Debuff", "durationSeconds": 10, "stacking": "Stack", "maxStacks": 3, "tickIntervalSeconds": 2, "magnitude": 1, "maxLevel": 5, "magnitudePerLevel": 1, "lethal": false, "persist": true },
+    { "id": 2, "key": "slowed", "icon": "status_slowed", "category": "Debuff", "durationSeconds": 3, "stacking": "Strongest", "moveSpeedMultiplier": 0.6, "maxLevel": 5, "moveSpeedMultiplierPerLevel": -0.1 },
+    { "id": 3, "key": "bleeding", "icon": "status_bleeding", "category": "Debuff", "durationSeconds": 6, "stacking": "Stack", "maxStacks": 5, "tickIntervalSeconds": 1, "magnitude": 0.75, "maxLevel": 5, "magnitudePerLevel": 0.5, "lethal": true, "persist": true },
     { "id": 4, "key": "stunned", "icon": "status_stunned", "category": "Debuff", "durationSeconds": 0.5, "stacking": "Refresh", "stun": true },
     { "id": 5, "key": "hungry", "icon": "status_hungry", "category": "Debuff", "derived": "Hungry", "maxStacks": 2 },
     { "id": 6, "key": "starving", "icon": "status_starving", "category": "Debuff", "derived": "Starving" },
     { "id": 7, "key": "tired", "icon": "status_tired", "category": "Debuff", "derived": "Tired", "maxStacks": 3 },
     { "id": 8, "key": "well_fed", "icon": "status_well_fed", "category": "Buff", "derived": "WellFed", "healthRegenMultiplier": 1.5 },
-    { "id": 9, "key": "rested", "icon": "status_rested", "category": "Buff", "durationSeconds": 600, "stacking": "Refresh", "staminaRegenMultiplier": 1.25, "persist": true }
+    { "id": 9, "key": "rested", "icon": "status_rested", "category": "Buff", "durationSeconds": 600, "stacking": "Refresh", "staminaRegenMultiplier": 1.25, "persist": true },
+    { "id": 10, "key": "drowning", "icon": "status_drowning", "category": "Debuff", "durationSeconds": 3600, "stacking": "Refresh", "tickIntervalSeconds": 1, "magnitude": 8, "lethal": true, "healthRegenMultiplier": 0 }
   ],
   "monsterProcs": [
     { "monster": "wild_slime", "effect": "slowed", "chance": 0.35 },

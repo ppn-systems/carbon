@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Streaming;
 using Carbon.Maps.Topography;
 
@@ -195,10 +196,24 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
     /// <param name="toY">Target tile Y.</param>
     /// <param name="includeLandmarks">Whether buildings and other landmark structures block tiles.</param>
     /// <returns><c>true</c> when the move is allowed.</returns>
-    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks)
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks) =>
+        this.CanTraverse(fromX, fromY, toX, toY, includeLandmarks, canSwim: false);
+
+    /// <summary>
+    /// Evaluates whether movement between two tiles is allowed for a walker or, with <paramref name="canSwim"/>, for a
+    /// swimmer, to whom deep water is open (ADR-032 D10). Height steps and cliffs apply to both.
+    /// </summary>
+    /// <param name="fromX">Source tile X.</param>
+    /// <param name="fromY">Source tile Y.</param>
+    /// <param name="toX">Target tile X.</param>
+    /// <param name="toY">Target tile Y.</param>
+    /// <param name="includeLandmarks">Whether buildings and other landmark structures block tiles.</param>
+    /// <param name="canSwim">Whether the mover swims and dives.</param>
+    /// <returns><c>true</c> when the move is allowed.</returns>
+    public bool CanTraverse(int fromX, int fromY, int toX, int toY, bool includeLandmarks, bool canSwim)
     {
         // Target tile must be walkable
-        if (this.GetWalkability(toX, toY, includeLandmarks) == TileWalkability.Impassable)
+        if (!this.IsOpen(toX, toY, includeLandmarks, canSwim))
         {
             return false;
         }
@@ -210,8 +225,8 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
         if (dx != 0 && dy != 0)
         {
             // Moving diagonally: check adjacent orthogonals
-            bool adj1Walkable = this.GetWalkability(fromX + dx, fromY, includeLandmarks) != TileWalkability.Impassable;
-            bool adj2Walkable = this.GetWalkability(fromX, fromY + dy, includeLandmarks) != TileWalkability.Impassable;
+            bool adj1Walkable = this.IsOpen(fromX + dx, fromY, includeLandmarks, canSwim);
+            bool adj2Walkable = this.IsOpen(fromX, fromY + dy, includeLandmarks, canSwim);
 
             if (!adj1Walkable && !adj2Walkable)
             {
@@ -239,5 +254,22 @@ public sealed class TileWalkabilityGrid : ITileWalkabilityGrid
     }
 
     // Dry river bank close to the channel (width-scaled distance just outside the water threshold).
+    // A tile a mover can stand on: walkable, or deep water for a swimmer (only the water itself makes it impassable,
+    // so a swimmer is still stopped by props, structures and landmarks in or beside it).
+    private bool IsOpen(int x, int y, bool includeLandmarks, bool canSwim)
+    {
+        TileWalkability walkability = this.GetWalkability(x, y, includeLandmarks);
+        if (walkability != TileWalkability.Impassable)
+        {
+            return true;
+        }
+
+        return canSwim &&
+            WaterWading.IsWater(_world.PeekTileAtWorld(x, y).Biome) &&
+            !_world.HasSolidPropAt(x, y) &&
+            !_world.Buildings.TryGetStructure(x, y, out _) &&
+            !(includeLandmarks && _world.Generator.Landmarks.IsTileBlocked(x, y));
+    }
+
     private static bool IsRiverside(float riverDistance) => riverDistance is > WorldConstants.RiverChannel and <= 4.0f;
 }

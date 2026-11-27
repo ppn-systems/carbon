@@ -32,7 +32,8 @@ internal readonly record struct OutboundCombatHit(
     float RemainingHealth,
     bool IsCritical,
     bool IsKilled,
-    ushort StatusEffectId = 0);
+    ushort StatusEffectId = 0,
+    byte StatusEffectLevel = 0);
 
 internal readonly record struct OutboundSlotChange(ulong ConnectionId, ushort SlotIndex, ItemSlot Slot);
 
@@ -91,6 +92,9 @@ internal readonly record struct OutboundWalletSync(ulong ConnectionId, long Gold
 internal readonly record struct OutboundPlayerDeath(ulong ConnectionId, PlayerDeathSnapshot Death);
 
 internal readonly record struct OutboundStaminaStatus(ulong ConnectionId, bool Exhausted, uint RefusalCount);
+
+/// <summary>A player's swim state and oxygen pushed to that player (ADR-032).</summary>
+internal readonly record struct OutboundOxygenSync(ulong ConnectionId, PlayerOxygenSnapshot Oxygen);
 
 /// <summary>A trader's stock pushed to one player (ADR-025).</summary>
 internal readonly record struct OutboundTraderStock(ulong ConnectionId, TraderStockSnapshot Stock);
@@ -156,6 +160,8 @@ internal sealed class OutboundBatch
 
     public List<OutboundPlayerDeath> PlayerDeaths { get; } = new(4);
 
+    public List<OutboundOxygenSync> OxygenSyncs { get; } = new(32);
+
     public List<OutboundSkillCast> SkillCasts { get; } = new(16);
 
     public List<OutboundAttackPhase> AttackPhases { get; } = new(32);
@@ -183,6 +189,7 @@ internal sealed class OutboundBatch
         this.StatusEntries.Clear();
         this.TraderStocks.Clear();
         this.PlayerDeaths.Clear();
+        this.OxygenSyncs.Clear();
         this.SkillCasts.Clear();
         this.AttackPhases.Clear();
         this.EnhancementAnnouncements.Clear();
@@ -255,7 +262,8 @@ internal sealed class OutboundTickBuffer
                 hit.RemainingHealth,
                 hit.IsCritical,
                 hit.IsKilled,
-                hit.StatusEffectId);
+                hit.StatusEffectId,
+                hit.StatusEffectLevel);
         }
 
         for (int i = 0; i < batch.SlotChanges.Count; i++)
@@ -337,6 +345,13 @@ internal sealed class OutboundTickBuffer
         {
             OutboundStatusSync status = batch.StatusSyncs[i];
             sink.SendStatusEffects(status.ConnectionId, statusSpan.Slice(status.Offset, status.Count));
+        }
+
+        for (int i = 0; i < batch.OxygenSyncs.Count; i++)
+        {
+            OutboundOxygenSync oxygen = batch.OxygenSyncs[i];
+            PlayerOxygenSnapshot snapshot = oxygen.Oxygen;
+            sink.SendPlayerOxygen(oxygen.ConnectionId, in snapshot);
         }
 
         for (int i = 0; i < batch.TraderStocks.Count; i++)

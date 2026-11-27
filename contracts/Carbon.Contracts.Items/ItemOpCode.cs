@@ -96,6 +96,11 @@ public static class ItemOpCode
     /// <summary>S2C: the local player's active status effects, sent to the owner only when they change.</summary>
     public const ushort StatusEffectSync = 0x4058;
 
+    // ── Water: swimming, diving and oxygen (0x4080–0x4087, ADR-032) ─────────
+
+    /// <summary>S2C: the local player's swim state and oxygen, sent to the owner only when they change.</summary>
+    public const ushort PlayerOxygenSync = 0x4080;
+
     // ── S2C: Server → Client push (0x4030–0x40FF) ───────────────────────────
 
     /// <summary>Unilateral notification that a player inventory slot changed.</summary>

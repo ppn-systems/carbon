@@ -1615,6 +1615,161 @@
           "qty": 1
         }
       ]
+    },
+    {
+      "id": 64,
+      "code": "wood_chest_kit",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 6
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_chest_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "code": "wood_bed_kit",
+      "station": "workbench",
+      "workTicks": 150,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 10
+        },
+        {
+          "item": "cloth",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_bed_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 66,
+      "code": "sandstone_wall",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 1,
+      "skill": "none",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "stone_chunk",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "sandstone_wall",
+          "qty": 2
+        }
+      ]
+    },
+    {
+      "id": 67,
+      "code": "wood_table_kit",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 4
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_table_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 68,
+      "code": "wood_shelf_kit",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 3
+        }
+      ],
+      "outputs": [
+        {
+          "item": "wood_shelf_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 69,
+      "code": "market_stall_kit",
+      "station": "workbench",
+      "workTicks": 150,
+      "unlockLevel": 3,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 8
+        },
+        {
+          "item": "cloth",
+          "qty": 2
+        }
+      ],
+      "outputs": [
+        {
+          "item": "market_stall_kit",
+          "qty": 1
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "code": "plank_deck",
+      "station": "workbench",
+      "workTicks": 90,
+      "unlockLevel": 1,
+      "skill": "carpentry",
+      "skillLevel": 0,
+      "ingredients": [
+        {
+          "item": "wood_plank",
+          "qty": 1
+        }
+      ],
+      "outputs": [
+        {
+          "item": "plank_deck",
+          "qty": 2
+        }
+      ]
     }
   ]
 }

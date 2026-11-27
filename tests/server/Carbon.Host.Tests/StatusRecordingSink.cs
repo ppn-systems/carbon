@@ -21,9 +21,19 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
 
     public List<(ulong ConnectionId, StatusEffectEntry[] Entries)> StatusSyncs { get; } = [];
 
-    public List<(ulong[] Recipients, ulong DefenderNetworkId, float Damage, float RemainingHealth, ushort StatusEffectId)> CombatHits { get; } = [];
+    public List<(ulong[] Recipients, ulong DefenderNetworkId, float Damage, float RemainingHealth, ushort StatusEffectId, byte StatusEffectLevel)> CombatHits { get; } = [];
 
     public Dictionary<ulong, Vector2> SelfPositions { get; } = [];
+
+    public List<(ulong ConnectionId, PlayerOxygenSnapshot Oxygen)> OxygenSyncs { get; } = [];
+
+    public List<(ulong ConnectionId, PlayerDeathSnapshot Death)> Deaths { get; } = [];
+
+    public void SendPlayerOxygen(ulong connectionId, in PlayerOxygenSnapshot oxygen) =>
+        this.OxygenSyncs.Add((connectionId, oxygen));
+
+    public void SendPlayerDeath(ulong connectionId, in PlayerDeathSnapshot death) =>
+        this.Deaths.Add((connectionId, death));
 
     public void SendStatusEffects(ulong connectionId, ReadOnlySpan<StatusEffectEntry> entries) =>
         this.StatusSyncs.Add((connectionId, entries.ToArray()));
@@ -36,8 +46,9 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId) =>
-        this.CombatHits.Add((recipientConnectionIds.ToArray(), defenderNetworkId, damage, remainingHealth, statusEffectId));
+        ushort statusEffectId,
+        byte statusEffectLevel) =>
+        this.CombatHits.Add((recipientConnectionIds.ToArray(), defenderNetworkId, damage, remainingHealth, statusEffectId, statusEffectLevel));
 
     public void SendEntityDeltaBatch(ulong connectionId, ulong serverTick, uint lastProcessedClientTick, float selfX, float selfY, ReadOnlySpan<EntityDeltaEntry> entries) =>
         this.SelfPositions[connectionId] = new Vector2(selfX, selfY);
@@ -55,7 +66,7 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
     }
 
     public void SendCombatHit(ReadOnlySpan<ulong> recipientConnectionIds, ulong attackerNetworkId, ulong defenderNetworkId, float damage, float remainingHealth, bool isCritical, bool isKilled) =>
-        this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, 0);
+        this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled, 0, 0);
 
     public void SendInventorySlotChanged(ulong connectionId, ushort slotIndex, uint itemId, int quantity, float durability, byte upgradeLevel = 0, float freshnessSeconds = 0f)
     {
@@ -65,9 +76,10 @@ internal sealed class StatusRecordingSink : IWorldOutboundSink
     {
     }
 
-    public void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot)
-    {
-    }
+    public Dictionary<ulong, PlayerStatsSnapshot> LastStats { get; } = [];
+
+    public void SendPlayerStatsSync(ulong connectionId, in PlayerStatsSnapshot snapshot) =>
+        this.LastStats[connectionId] = snapshot;
 
     public void SendWalletSync(ulong connectionId, long gold, long diamonds, ulong sequence)
     {

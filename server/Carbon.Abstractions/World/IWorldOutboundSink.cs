@@ -38,6 +38,13 @@ public readonly record struct PlayerStatsSnapshot(
 /// <param name="GoldDropped">Gold debited and dropped at the death spot.</param>
 public readonly record struct PlayerDeathSnapshot(DeathCause Cause, ushort KillerArchetypeId, ulong KillerNetworkId, long GoldDropped);
 
+/// <summary>The local player's swim state and oxygen (ADR-032 D12), sent to the owner only.</summary>
+/// <param name="SwimState">0 walking, 1 wading, 2 swimming, 3 diving.</param>
+/// <param name="DepthTier">Water depth tier under the player (0 dry … 5 abyss).</param>
+/// <param name="OxygenMs">Oxygen left, in milliseconds of diving.</param>
+/// <param name="MaxOxygenMs">The full oxygen pool, in milliseconds.</param>
+public readonly record struct PlayerOxygenSnapshot(byte SwimState, byte DepthTier, uint OxygenMs, uint MaxOxygenMs);
+
 /// <summary>
 /// Survival needs of the local player carried inside <see cref="PlayerStatsSnapshot"/>.
 /// </summary>
@@ -158,6 +165,7 @@ public readonly record struct AttackPhaseSnapshot(
 /// <param name="Magnitude">Damage per pulse (all stacks) for damage effects, otherwise the effect's multiplier.</param>
 /// <param name="SourceKind">What applied it (<c>StatusSource</c> byte).</param>
 /// <param name="SourceId">Source detail: the monster archetype id, or 0.</param>
+/// <param name="Level">Effect level (amplifier), 1 = I (ADR-036).</param>
 public readonly record struct StatusEffectEntry(
     ushort EffectId,
     byte Stacks,
@@ -165,7 +173,8 @@ public readonly record struct StatusEffectEntry(
     uint DurationMs,
     float Magnitude,
     byte SourceKind,
-    ushort SourceId);
+    ushort SourceId,
+    byte Level = 1);
 
 /// <summary>
 /// Decoupled transport sink used by <c>Carbon.Application</c> to dispatch AoI entity updates and map edits
@@ -211,7 +220,7 @@ public interface IWorldOutboundSink
 
     /// <summary>
     /// Broadcasts a combat hit caused by a status effect pulse (ADR-029 D9); <paramref name="statusEffectId"/> is 0 for a
-    /// direct hit. Sinks that do not tint damage numbers fall back to <see cref="SendCombatHit(ReadOnlySpan{ulong}, ulong, ulong, float, float, bool, bool)"/>.
+    /// direct hit, and <paramref name="statusEffectLevel"/> is the pulsing effect's level (ADR-036; 0 for a direct hit). Sinks that do not tint damage numbers fall back to <see cref="SendCombatHit(ReadOnlySpan{ulong}, ulong, ulong, float, float, bool, bool)"/>.
     /// </summary>
     void SendCombatHit(
         ReadOnlySpan<ulong> recipientConnectionIds,
@@ -221,7 +230,8 @@ public interface IWorldOutboundSink
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId) =>
+        ushort statusEffectId,
+        byte statusEffectLevel) =>
         this.SendCombatHit(recipientConnectionIds, attackerNetworkId, defenderNetworkId, damage, remainingHealth, isCritical, isKilled);
 
     /// <summary>
@@ -269,6 +279,13 @@ public interface IWorldOutboundSink
 
     /// <summary>Tells a player they died and what it cost them (ADR-031). Sinks without a death screen ignore it.</summary>
     void SendPlayerDeath(ulong connectionId, in PlayerDeathSnapshot death)
+    {
+    }
+
+    /// <summary>
+    /// Sends the owner's swim state and oxygen (ADR-032 D12), only when they change. Sinks without water ignore it.
+    /// </summary>
+    void SendPlayerOxygen(ulong connectionId, in PlayerOxygenSnapshot oxygen)
     {
     }
 

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Items.S2C;
+using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Networking.Session;
 using Carbon.Desktop.Rendering.Hud;
@@ -77,6 +78,17 @@ public sealed class DeathScreenTests
         death.TryRequestRespawn().Should().BeTrue("a refused request may be retried");
 
         sent.Should().Be(2);
+    }
+
+    // ADR-032: a diver who runs out of air is told they drowned, in their language.
+    [Fact]
+    public void DescribeCause_Drowning_NamesDrowningNotAnUnknownEnd()
+    {
+        string text = new DeathScreenWidget().DescribeCause(new DeathView(DeathCause.Drowning, 0, 0L));
+
+        text.Should().Be(GameText.Get("death.cause.drowning"));
+        text.Should().NotBe("death.cause.drowning", "the key must exist in the locale files");
+        text.Should().NotBe(GameText.Get("death.cause.unknown"));
     }
 
     [Fact]

@@ -13,6 +13,7 @@ namespace Carbon.Combat.Statuses;
 /// <param name="TotalMagnitude">Total pulse value (<c>MagnitudePerStack * Stacks</c>).</param>
 /// <param name="IsDamage"><see langword="true"/> if damage; <see langword="false"/> if healing.</param>
 /// <param name="Lethal">Whether a damage pulse may take the last hit point.</param>
+/// <param name="Level">Level of the pulsing effect (ADR-036), sent with the tinted combat hit.</param>
 /// <param name="Applied">Health actually removed or restored, set by <see cref="StatusEffectSystem"/> when it publishes.</param>
 public readonly record struct StatusPulseEvent(
     Entity Caster,
@@ -21,4 +22,5 @@ public readonly record struct StatusPulseEvent(
     float TotalMagnitude,
     bool IsDamage,
     bool Lethal = true,
-    float Applied = 0f);
+    float Applied = 0f,
+    byte Level = 1);

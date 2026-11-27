@@ -43,13 +43,15 @@ public sealed partial class AuthoritativeWorld
                 hp.Current,
                 false,
                 false,
-                (ushort)pulse.EffectId);
+                (ushort)pulse.EffectId,
+                pulse.Level);
 
             if (hp.Current <= 0f && !state.IsDead)
             {
                 // A lethal pulse (bleeding) enters the same dead state as a hit (ADR-031), which also clears every effect.
                 Vector2 deathPos = _simulation.Entities.GetTransform(state.Entity).Position;
-                this.KillPlayerLocked(state, attackerNetId, deathPos, DeathCause.Monster);
+                DeathCause cause = this.IsDrowningEffect((ushort)pulse.EffectId) ? DeathCause.Drowning : DeathCause.Monster;
+                this.KillPlayerLocked(state, attackerNetId, deathPos, cause);
                 this.QueueCombatHitLocked(deathPos, attackerNetId, victimNetId, 0f, 0f, false, true);
             }
         }

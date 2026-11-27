@@ -118,18 +118,39 @@ function of `WorldGenSettings` and must never touch `GameplayEntropy`.
 
 ### Swimming, diving and oxygen (PR 2, server)
 
-- **D10 — Movement state from the tier.** The tier under a player gives Walking, Wading, Swimming or Diving.
-  Each state has a speed multiplier from server config, applied in place of the wading ramp. Deep and Abyss stop
-  being solid for players, but stay impassable for land creatures and in land path cost.
+- **D10 — Movement state from the tier.**
+  - The tier of the tile under a player gives Walking (land, bridge, pier), Wading (Shore, Shallow), Swimming
+    (Medium) or Diving (Deep, Abyss): `ChunkWorld2D.GetSwimStateAt`.
+  - Speed comes from `resources/config/water.json` (a new ADR-014 document, synced to clients and hot-reloadable).
+    It holds one multiplier per tier, taken at the depth where the tier starts, and blends linearly between them
+    over a depth sampled bilinearly from the four nearest tile centres, so speed never steps at a tile border.
+    This replaces the wading distance ramp in `ChunkWorld2D.GetMoveSpeedMultiplier`, the path shared by server
+    players, client prediction and creatures.
+  - Deep water stays `IsSolid`. A collider whose mask lacks `TerrainMask.DeepWater` (`SwimmingColliders.AsSwimmer`)
+    passes through it in `WorldCollision.Resolve` and `TileWalkabilityGrid.CanTraverse(…, canSwim)`. Cliffs, props,
+    structures and landmarks still block swimmers.
+  - Players get that mask on the server and on the predicting client. Every other collider keeps the default mask,
+    so deep water stays a wall to land creatures and in their path costs.
+  - A swimming or diving player counts as the `Swimming` needs activity (ADR-015), which needs.json already rates.
+  - On the ADR-033 D8 seam, each tick of swimming or diving strokes drains `stamina.json` `swimDrainPerSecond` (5)
+    through `StaminaMeter.TryDrain`, so the regen delay and exhaustion apply to swimmers as they do to sprinters.
 - **D11 — Oxygen is server-authoritative.**
-  - It drains while Diving and refills at the surface or on land. At 0, drowning damage pulses through the normal
-    damage and death path.
-  - It hooks into the ADR-029 status-effect system if that has landed; otherwise it sits behind a seam that one
-    call site can replace.
-  - Oxygen is **not persisted**. A relog takes longer than surfacing, so persisting it would buy no fairness, and
-    it would spend the reserved migration id 0015 for nothing.
-- **D12 — Wire.** Oxygen goes to its owner only, in a new S2C packet in the free band 0x4080–0x4087, sent on
-  change. No existing packet member is renumbered.
+  - The pool is `oxygen.maxSeconds` (30). It drains while diving (Deep 1/s, Abyss 1.5/s) and refills at 10/s
+    anywhere else. It is stepped after the simulation tick (`AuthoritativeWorld.StepWaterLocked`).
+  - At 0, the server applies the ADR-029 `drowning` effect once: Refresh, 8 damage a second, lethal, and
+    `healthRegenMultiplier` 0, so regeneration cannot outlast it. The effect is removed once on surfacing, so the
+    owner's status list changes twice per drowning and not every tick.
+  - A lethal drowning pulse takes the normal death path with the new `DeathCause.Drowning` (3, appended), which
+    the death screen names (`death.cause.drowning`). Respawning refills the breath.
+  - The effect has the `status_drowning` icon and the `status_effects.drowning.*` texts in the client's status strip.
+  - Oxygen is **not persisted**: a player always enters the world with a full breath. A relog takes longer than
+    surfacing, so persisting it would buy no fairness, and it would spend the reserved migration id 0015 for nothing.
+- **D12 — Wire.**
+  - New S2C `PlayerOxygenSync` (0x4080 in the free band 0x4080–0x4087), sent to the owning connection only. It
+    carries the swim state, the depth tier, the oxygen left and the full pool, both in milliseconds.
+  - It is sent at entry, and when the swim state or tier changes or the oxygen crosses a whole percent: about 1.5
+    a second while diving in the abyss, and never on land at full breath.
+  - No existing packet member is renumbered.
 
 ### Client (PR 3)
 

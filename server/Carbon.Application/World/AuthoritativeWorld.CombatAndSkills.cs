@@ -73,8 +73,9 @@ public sealed partial class AuthoritativeWorld
         float remainingHealth,
         bool isCritical,
         bool isKilled,
-        ushort statusEffectId = 0) =>
-        _combat.QueueCombatHit(worldPos, attackerNetId, defenderNetId, damage, remainingHealth, isCritical, isKilled, statusEffectId);
+        ushort statusEffectId = 0,
+        byte statusEffectLevel = 0) =>
+        _combat.QueueCombatHit(worldPos, attackerNetId, defenderNetId, damage, remainingHealth, isCritical, isKilled, statusEffectId, statusEffectLevel);
 
     private void GrantExperienceLocked(PlayerState state, uint amount, out bool leveledUp)
     {

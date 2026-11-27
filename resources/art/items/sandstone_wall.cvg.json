@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "itemId": 209,
+  "id": "sandstone_wall",
+  "displayName": "Sandstone Wall Kit",
+  "tier": 1,
+  "categoryLabel": "Placeable Kit",
+  "accentColor": "#D6A55B",
+  "gripX": 0.0,
+  "gripY": 0.0,
+  "restAngleDeg": 0.0,
+  "worldScale": 0.72,
+  "palette": {},
+  "heldVisible": false,
+  "shapes": [
+    {
+      "kind": "rect",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -5,
+      "w": 14,
+      "h": 10,
+      "color": "#C2923F",
+      "outlineColor": "#5C3D12",
+      "outlineThickness": 1.0
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": -2,
+      "x2": 7,
+      "y2": -2,
+      "thickness": 0.8,
+      "color": "#5C3D12"
+    },
+    {
+      "kind": "line",
+      "bone": "root",
+      "facing": "any",
+      "x": -7,
+      "y": 1,
+      "x2": 7,
+      "y2": 1,
+      "thickness": 0.8,
+      "color": "#5C3D12"
+    }
+  ]
+}

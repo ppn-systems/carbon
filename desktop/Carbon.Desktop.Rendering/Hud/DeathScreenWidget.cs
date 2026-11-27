@@ -104,10 +104,11 @@ internal sealed class DeathScreenWidget
     private static (float X, float Y) Origin(int viewportWidth, int viewportHeight) =>
         (MathF.Floor((viewportWidth - PanelWidth) * 0.5f), MathF.Floor((viewportHeight - PanelHeight) * 0.14f));
 
-    private string DescribeCause(in DeathView death) => death.Cause switch
+    internal string DescribeCause(in DeathView death) => death.Cause switch
     {
         DeathCause.Monster when death.KillerNameKey is { Length: > 0 } key => _killedBy.Format("death.killed_by", new TextArg("name", GameText.Get(key))),
         DeathCause.Starvation => GameText.Get("death.cause.starvation"),
+        DeathCause.Drowning => GameText.Get("death.cause.drowning"),
         DeathCause.Unknown or DeathCause.Monster => GameText.Get("death.cause.unknown"),
         _ => GameText.Get("death.cause.unknown"),
     };

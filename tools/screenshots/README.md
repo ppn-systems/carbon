@@ -39,7 +39,7 @@ Requirements: the .NET SDK (`$HOME/.dotnet` is added to `PATH`), `xvfb-run`, GLF
 | `CARBON_DEBUG_SPAWN_BIOME=<BiomeType>` | Every character enters at the nearest representative tile of the biome (`BiomeLocator`: ±10-tile interior; `ShallowWater` is framed wading by a shore). |
 | `CARBON_DEBUG_SPAWN_TILE=x,y` | Every character enters at this world tile (wins over the biome). |
 | `CARBON_DEBUG_SPAWN_POI=<PointOfInterestType>` | Every character enters just south of the well of the nearest point of interest of that type (e.g. `DesertVillage`; searched 12 sites out). A village type may name a building after a colon (`RiverVillage:Smithy`, `:Store`, `:Stall`, `:House`) to stand in front of it. Villages default to the market stall. Combine with `CARBON_WORLD_SEED` in the server env (and `CARBON_SEED` in the client env) for a seed that has one. |
-| `CARBON_DEBUG_STATUS_EFFECTS=key:ms:stacks;...` | Every character enters the world with these status effects (ADR-029), e.g. `poisoned:110000:2;slowed:90000:1`. Durations are not clamped, so short effects last long enough to capture. |
+| `CARBON_DEBUG_STATUS_EFFECTS=key:ms:stacks;...` | Every character enters the world with these status effects (ADR-029), e.g. `poisoned:110000:2;slowed:90000:1`. Prefix `v2;` to give each entry a level (ADR-036): `v2;poisoned:110000:2:3`. Durations are not clamped, so short effects last long enough to capture. |
 | `CARBON_DEBUG_SPAWN_OFFSET=dx,dy` | Offset in tiles added to the resolved spawn (e.g. far from the starter area). |
 | `CARBON_DEBUG_START_HOUR=h` | The world clock starts at hour `h` (0..24); clients follow the server clock. |
 | `CARBON_DEBUG_START_LEVEL=n` | Characters enter the world at level `n` or higher (shots of mid-level UI such as the character panel). |

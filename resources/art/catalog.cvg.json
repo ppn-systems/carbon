@@ -909,6 +909,62 @@
       "tier": 3,
       "accentColor": "#FACC15",
       "file": "items/blessed_forge_scroll.cvg.json"
+    },
+    {
+      "itemId": 207,
+      "id": "wood_chest_kit",
+      "displayName": "Wood Chest Kit",
+      "tier": 1,
+      "accentColor": "#B45309",
+      "file": "items/wood_chest_kit.cvg.json"
+    },
+    {
+      "itemId": 208,
+      "id": "wood_bed_kit",
+      "displayName": "Wood Bed Kit",
+      "tier": 1,
+      "accentColor": "#DC2626",
+      "file": "items/wood_bed_kit.cvg.json"
+    },
+    {
+      "itemId": 209,
+      "id": "sandstone_wall",
+      "displayName": "Sandstone Wall Kit",
+      "tier": 1,
+      "accentColor": "#D6A55B",
+      "file": "items/sandstone_wall.cvg.json"
+    },
+    {
+      "itemId": 210,
+      "id": "wood_table_kit",
+      "displayName": "Wood Table Kit",
+      "tier": 1,
+      "accentColor": "#CA8A04",
+      "file": "items/wood_table_kit.cvg.json"
+    },
+    {
+      "itemId": 211,
+      "id": "wood_shelf_kit",
+      "displayName": "Wood Shelf Kit",
+      "tier": 1,
+      "accentColor": "#A16207",
+      "file": "items/wood_shelf_kit.cvg.json"
+    },
+    {
+      "itemId": 212,
+      "id": "market_stall_kit",
+      "displayName": "Market Stall Kit",
+      "tier": 2,
+      "accentColor": "#EF4444",
+      "file": "items/market_stall_kit.cvg.json"
+    },
+    {
+      "itemId": 213,
+      "id": "plank_deck",
+      "displayName": "Plank Deck Kit",
+      "tier": 1,
+      "accentColor": "#A8774A",
+      "file": "items/plank_deck.cvg.json"
     }
   ],
   "props": [
@@ -1301,6 +1357,10 @@
     {
       "id": "status_stunned",
       "file": "ui/status_stunned.cvg.json"
+    },
+    {
+      "id": "status_drowning",
+      "file": "ui/status_drowning.cvg.json"
     },
     {
       "id": "status_hungry",

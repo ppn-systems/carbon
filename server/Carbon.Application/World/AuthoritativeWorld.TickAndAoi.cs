@@ -19,6 +19,7 @@ using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
 using Carbon.Maps.Data;
+using Carbon.Maps.Hydrology;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.Clock;
 using Carbon.Simulation.ECS;
@@ -69,7 +70,10 @@ public sealed partial class AuthoritativeWorld
                     state.HasPendingInput = false;
                 }
 
-                if (!isSprinting)
+                // ADR-032 on the ADR-033 seam: swimming and diving strokes cost stamina like sprinting.
+                bool isSwimStroke = !isSprinting && state.SwimState >= SwimState.Swimming && this.IsPlayerMovingLocked(state) &&
+                    _stamina.DrainSwim(state, dt);
+                if (!isSprinting && !isSwimStroke)
                 {
                     _stamina.Regenerate(state, dt, this.IsPlayerMovingLocked(state), _statusEffects.GetStaminaRegenMultiplier(state.Entity));
                 }
@@ -93,6 +97,7 @@ public sealed partial class AuthoritativeWorld
             _simulation.Tick(new FixedTickArgs(_currentTick, dt, _currentTick * dt));
             this.ProcessStatusPulsesLocked();
             this.ProcessSurvivalEventsLocked();
+            this.StepWaterLocked(dt);
             if ((_currentTick % this.TickRate) == 0UL)
             {
                 this.AdvanceFoodSpoilageLocked(SpoilageStepSeconds);
@@ -222,6 +227,7 @@ public sealed partial class AuthoritativeWorld
                 }
 
                 this.QueueStatusEffectSyncLocked(observer);
+                this.QueueOxygenSyncLocked(observer);
 
                 if (observer.StatsDirty || (_currentTick % 10UL) == 0UL)
                 {
