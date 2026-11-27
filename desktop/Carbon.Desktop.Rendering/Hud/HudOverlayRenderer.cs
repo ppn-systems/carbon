@@ -36,7 +36,8 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
     private readonly CarbonUiSkin _uiSkin;
     private readonly IVectorArtRepository? _art;
     private readonly MonsterTargetWidget _targetWidget = new();
-    private readonly MinimapRadarWidget _minimap = new();
+    private readonly MinimapRadarWidget _minimap;
+    private readonly DayNightClockWidget _clock = new();
     private readonly HotbarAndItemWidget _hotbar = new();
     private readonly SkillBarWidget _skillBar = new();
     private readonly InventoryModalWidget _bagModal = new();
@@ -66,6 +67,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         (_font, _whitePixel) = GameFontLoader.Load(device);
         _uiSkin = CarbonUiSkin.Load(device);
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
+        _minimap = new MinimapRadarWidget(device);
     }
 
     /// <summary>Gets the persisted client HUD &amp; display settings.</summary>
@@ -120,6 +122,16 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         _settingsModal.SelectTab(tab);
         this.ShowSettingsModal = true;
     }
+
+    /// <summary>Marks a terrain chunk for a minimap re-bake (forwarded from the session's dirty-chunk feed).</summary>
+    public void InvalidateMinimapChunk(int chunkX, int chunkY) => _minimap.InvalidateChunk(chunkX, chunkY);
+
+    /// <summary>Zooms the minimap when the cursor is over it; returns whether the wheel was consumed.</summary>
+    /// <param name="mousePos">Cursor position.</param>
+    /// <param name="steps">Positive to zoom in.</param>
+    /// <param name="viewportWidth">Viewport width.</param>
+    public bool TryZoomMinimap(Vector2 mousePos, int steps, int viewportWidth) =>
+        this.Visible && this.Settings.ShowMinimap && !this.HasActiveModal && _minimap.TryZoom(mousePos, steps, viewportWidth);
 
     /// <summary>Queues a brief fading notification toast on the right edge of the HUD.</summary>
     public void PushNotification(string message) => _toasts.Push(message);
@@ -350,6 +362,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         ArgumentNullException.ThrowIfNull(world);
         skillId = 0;
         return this.Visible && viewportWidth > 0 && viewportHeight > 0 &&
+            this.PrepareSkillBar(viewportWidth) &&
             _skillBar.TryHitTestSkill(world, mousePos, viewportWidth, viewportHeight, out skillId);
     }
 
@@ -405,7 +418,6 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         int viewportWidth,
         int viewportHeight,
         float frameDt,
-        float hourOfDay,
         Vector2? mouseScreenPos = null,
         CombatFeedbackTracker? feedback = null,
         Vector2? aimedWorldPos = null)
@@ -417,7 +429,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             return;
         }
 
-        _ = hourOfDay;
+        _ = this.PrepareSkillBar(viewportWidth);
         _animTime += frameDt;
         _forgeModal.Update(frameDt, world);
         _toasts.Step(frameDt);
@@ -595,10 +607,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.TargetFrame:
                 _targetWidget.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth);
                 break;
+            case HudElement.Clock:
+                _clock.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
+                break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
                 {
-                    _minimap.DrawSkin(spriteBatch, _uiSkin, f.ViewportWidth);
+                    _minimap.DrawSkin(spriteBatch, _uiSkin, f.World, _art, f.ViewportWidth);
                 }
 
                 break;
@@ -609,7 +624,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _skillBar.DrawSkin(spriteBatch, _uiSkin, f.World, f.ViewportWidth, f.ViewportHeight);
                 break;
             case HudElement.Toasts:
-                _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, this.Settings.ShowMinimap);
+                _toasts.DrawSkin(spriteBatch, _uiSkin, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
                 break;
             case HudElement.Wallet:
             default:
@@ -624,10 +639,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.TargetFrame:
                 _targetWidget.DrawGeometry(_geometryBatch, _art, f.ViewportWidth, _animTime);
                 break;
+            case HudElement.Clock:
+                _clock.DrawGeometry(_geometryBatch, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
+                break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
                 {
-                    _minimap.DrawGeometry(_geometryBatch, f.World, _art, f.ViewportWidth, f.Ptx, f.Pty);
+                    _minimap.DrawGeometry(_geometryBatch, f.World, _art, f.ViewportWidth);
                 }
 
                 break;
@@ -654,10 +672,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
             case HudElement.TargetFrame:
                 _targetWidget.DrawText(spriteBatch, _font, _art, f.ViewportWidth);
                 break;
+            case HudElement.Clock:
+                _clock.DrawText(spriteBatch, _font, f.ViewportWidth, f.World.AuthoritativeTimeHour, f.World.AuthoritativeIsNight);
+                break;
             case HudElement.Minimap:
                 if (this.Settings.ShowMinimap)
                 {
-                    _minimap.DrawText(spriteBatch, _font, f.ViewportWidth, f.Ptx, f.Pty);
+                    _minimap.DrawText(spriteBatch, _font, f.ViewportWidth, f.Ptx, f.Pty, f.BackgroundMouse);
                 }
 
                 break;
@@ -668,7 +689,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
                 _skillBar.DrawText(spriteBatch, _font, f.World, f.ViewportWidth, f.ViewportHeight, hoveredSkill);
                 break;
             case HudElement.Toasts:
-                _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, this.Settings.ShowMinimap);
+                _toasts.DrawText(spriteBatch, _font, f.ViewportWidth, HudLayout.GetToastTop(f.ViewportWidth, this.Settings.ShowMinimap));
                 break;
             case HudElement.Wallet:
                 PlayerModalLayout layout = PlayerModalTabs.ComputeLayout(f.ViewportWidth, f.ViewportHeight);
@@ -688,6 +709,13 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         int Pty,
         Vector2? BackgroundMouse,
         CombatFeedbackTracker? Feedback);
+
+    /// <summary>Keeps the skill bar under the clock/minimap column (<see cref="HudLayout"/>); always returns <see langword="true"/>.</summary>
+    private bool PrepareSkillBar(int viewportWidth)
+    {
+        _skillBar.MinTop = HudLayout.GetSkillBarMinTop(viewportWidth, this.Settings.ShowMinimap);
+        return true;
+    }
 
     /// <inheritdoc/>
     private void ReloadFontIfLanguageChanged()
@@ -710,6 +738,7 @@ public sealed class HudOverlayRenderer : IDisposable, IInventoryInputHud
         if (!_disposed)
         {
             _uiSkin.Dispose();
+            _minimap.Dispose();
             _geometryBatch.Dispose();
             _font.Dispose();
             _whitePixel.Dispose();
