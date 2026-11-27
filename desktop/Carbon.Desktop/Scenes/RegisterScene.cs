@@ -233,9 +233,9 @@ internal sealed class RegisterScene : MenuScene
             return;
         }
 
-        _usernameField.AppendChar(ch);
-        _passwordField.AppendChar(ch);
-        _confirmField.AppendChar(ch);
+        _ = _usernameField.AppendChar(ch);
+        _ = _passwordField.AppendChar(ch);
+        _ = _confirmField.AppendChar(ch);
     }
 
     /// <inheritdoc/>
