@@ -22,15 +22,41 @@ namespace Carbon.Host.Tests;
 public sealed class HarvestLineOfSightTests
 {
     [Fact]
-    public async Task TryHarvestProp_AWallBetweenThePlayerAndTheProp_StillStrikes()
+    public async Task TryHarvestProp_AWallBetweenThePlayerAndTheProp_IsRefusedAndStrikesNothing()
     {
-        // Characterisation: nothing checks the line of sight, so the stones are struck through the wall.
         (int x, int y) = RegrowthWorldFixture.FindProp(p => p.Type == MapPropType.LooseStones, outsideClearing: false);
         using RegrowthWorldFixture f = await RegrowthWorldFixture.CreateAsync(RegrowthWorldFixture.Rules(), x, y, ItemSlot.Empty).ConfigureAwait(true);
         StandTilesEastOf(f.World, x, y, tiles: 3);
         f.World.Chunks.Buildings.ForcePlaceStructure(x + 2, y, StructureType.StoneWall);
 
-        f.World.TryHarvestProp(RegrowthWorldFixture.Conn, x, y).Status.Should().Be(OpStatus.Ok, "the wall does not stop the strike");
+        f.World.TryHarvestProp(RegrowthWorldFixture.Conn, x, y).Status.Should().Be(OpStatus.OutOfRange, "the wall blocks the strike");
+        f.Probe(x, y).Destroyed.Should().BeFalse();
+
+        // The refusal started no cooldown: with the wall gone, the next strike lands at once.
+        f.World.Chunks.Buildings.TryDemolishStructure(x + 2, y).Should().BeTrue();
+        f.World.TryHarvestProp(RegrowthWorldFixture.Conn, x, y).Status.Should().Be(OpStatus.Ok);
+    }
+
+    [Fact]
+    public async Task TryHarvestProp_TheSameReachInTheOpen_Strikes()
+    {
+        (int x, int y) = RegrowthWorldFixture.FindProp(p => p.Type == MapPropType.LooseStones, outsideClearing: false);
+        using RegrowthWorldFixture f = await RegrowthWorldFixture.CreateAsync(RegrowthWorldFixture.Rules(), x, y, ItemSlot.Empty).ConfigureAwait(true);
+        StandTilesEastOf(f.World, x, y, tiles: 3);
+
+        f.World.TryHarvestProp(RegrowthWorldFixture.Conn, x, y).Status.Should().Be(OpStatus.Ok);
+    }
+
+    [Fact]
+    public async Task TryHarvestProp_AWallBesideTheLineOfSight_DoesNotBlockIt()
+    {
+        // Only a wall on the line counts: one a tile to the side of it does not.
+        (int x, int y) = RegrowthWorldFixture.FindProp(p => p.Type == MapPropType.LooseStones, outsideClearing: false);
+        using RegrowthWorldFixture f = await RegrowthWorldFixture.CreateAsync(RegrowthWorldFixture.Rules(), x, y, ItemSlot.Empty).ConfigureAwait(true);
+        StandTilesEastOf(f.World, x, y, tiles: 3);
+        f.World.Chunks.Buildings.ForcePlaceStructure(x + 2, y + 1, StructureType.StoneWall);
+
+        f.World.TryHarvestProp(RegrowthWorldFixture.Conn, x, y).Status.Should().Be(OpStatus.Ok);
     }
 
     // Moves the fixture's player to the centre of the tile `tiles` east of the prop, on its row.
