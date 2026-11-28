@@ -57,15 +57,19 @@ public sealed class ChunkRequestReachTests
     }
 
     [Theory]
-    [InlineData(AuthoritativeWorld.ChunkRequestReach, true)]
-    [InlineData(AuthoritativeWorld.ChunkRequestReach + 1, false)]
-    public void TryCreateChunkDeltaPacket_AtTheEdgeOfTheReach_ServesInsideAndRefusesOutside(int chunksAway, bool served)
+    [InlineData(3, 0, true)]
+    [InlineData(0, 3, true)]
+    [InlineData(3, 3, true)]
+    [InlineData(4, 0, false)]
+    [InlineData(0, 4, false)]
+    public void TryCreateChunkDeltaPacket_AtTheEdgeOfTheReach_ServesInsideAndRefusesOutside(int chunksWest, int chunksNorth, bool served)
     {
-        // The player stands chunksAway chunks west of the village chunk (Chebyshev distance on each axis).
+        // The client requests the ring of 2 chunks it streams; the server allows one chunk of slack, on each axis.
+        AuthoritativeWorld.ChunkRequestReach.Should().Be(3);
         using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1);
         AuthoritativeWorld world = harness.World;
         (int cx, int cy) = FarVillageChunk(world, minChunks: 12);
-        EnterAtChunk(world, Visitor, cx - chunksAway, cy);
+        EnterAtChunk(world, Visitor, cx - chunksWest, cy - chunksNorth);
 
         // Entering near the village streams chunks of its site, which builds it either way; only the reply differs.
         world.TryCreateChunkDeltaPacket(Visitor, cx, cy, 0U, out MapChunkDelta? packet).Should().Be(served);
@@ -75,16 +79,18 @@ public sealed class ChunkRequestReachTests
     [Fact]
     public void TryCreateChunkDeltaPacket_AConnectionWithNoPlayerInTheWorld_IsRefused()
     {
+        // Not even a chunk with a delta to serve: the far village.
         using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1);
         AuthoritativeWorld world = harness.World;
-        int spawnCx = Chunk2D.ToChunkCoord((int)MathF.Floor(world.DefaultSpawnWorldPosition.X / world.TileSize));
-        int spawnCy = Chunk2D.ToChunkCoord((int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / world.TileSize));
+        (int cx, int cy) = FarVillageChunk(world, minChunks: 12);
 
-        world.TryCreateChunkDeltaPacket(9_999UL, spawnCx, spawnCy, 0U, out MapChunkDelta? packet).Should().BeFalse();
+        world.TryCreateChunkDeltaPacket(9_999UL, cx, cy, 0U, out MapChunkDelta? packet).Should().BeFalse();
         using (packet)
         {
             packet.Should().BeNull();
         }
+
+        world.Chunks.TryGetDelta(cx, cy, out _).Should().BeFalse("nothing is built for a connection that is not in the world");
     }
 
     [Fact]
