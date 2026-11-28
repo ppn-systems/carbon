@@ -603,7 +603,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             bool diedBeforeLogout = character.CurrentHealth <= 0f;
             Vector2 spawnPos = _debugSpawnPosition
                 ?? (diedBeforeLogout ? _chunkWorld.SpawnWorldPosition : new Vector2(character.PositionX, character.PositionY));
-            _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: StreamChunkRadius, evictionRadius: 8);
+            _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: StreamChunkRadius, evictionRadius: 8, stream: connectionId);
             _settlements.PopulateAround(spawnPos, radius: 2);
 
             ulong networkId = ++_nextNetworkId;

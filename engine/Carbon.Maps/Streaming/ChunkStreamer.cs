@@ -23,6 +23,9 @@ internal sealed class ChunkStreamer
     private readonly ConcurrentDictionary<long, Chunk2D> _active = new();
     private readonly ConcurrentQueue<Chunk2D> _pool = new();
     private readonly List<long> _evictionBuffer = new();
+
+    // The latest centre and eviction radius of every named stream (one per player on the server), under the lock.
+    private readonly Dictionary<ulong, (int X, int Y, int Radius)> _keepers = new();
     private Chunk2D[] _activeSnapshot = [];
 
     /// <summary>Initializes a new instance of the <see cref="ChunkStreamer"/> class.</summary>
@@ -92,8 +95,18 @@ internal sealed class ChunkStreamer
         this.RebuildActiveSnapshotLocked();
     }
 
-    /// <summary>Loads every chunk within <paramref name="loadRadius"/> and recycles those beyond <paramref name="evictRadius"/>.</summary>
-    public void Stream(int centerChunkX, int centerChunkY, int loadRadius, int evictRadius)
+    /// <summary>
+    /// Loads every chunk within <paramref name="loadRadius"/> and recycles those that neither this call nor any other
+    /// stream still keeps: a chunk stays while it is within <paramref name="evictRadius"/> of this centre, or within the
+    /// eviction radius of the latest centre of any stream other than 0 (each player on the server), until
+    /// <see cref="Release"/>. Stream 0 (the client, one-off server calls) is not remembered.
+    /// </summary>
+    /// <param name="centerChunkX">Centre chunk X.</param>
+    /// <param name="centerChunkY">Centre chunk Y.</param>
+    /// <param name="loadRadius">Load radius in chunks.</param>
+    /// <param name="evictRadius">Eviction radius in chunks.</param>
+    /// <param name="stream">Who is streaming; 0 for an anonymous caller.</param>
+    public void Stream(int centerChunkX, int centerChunkY, int loadRadius, int evictRadius, ulong stream = 0)
     {
         // ALLOC-12: the snapshot is rebuilt once per call, after the loads and the evictions, not once per loaded chunk.
         // Until then it lacks only the chunks loaded by this call; they are inside the load radius, so the eviction pass
@@ -120,6 +133,11 @@ internal sealed class ChunkStreamer
         // Evicted chunks keep their edits in the delta store.
         lock (_gate)
         {
+            if (stream != 0)
+            {
+                _keepers[stream] = (centerChunkX, centerChunkY, evictRadius);
+            }
+
             // The snapshot holds every resident chunk except those loaded above: every other change to _active happens
             // under this lock and rebuilds it. Walking the array instead of the ConcurrentDictionary avoids allocating
             // an enumerator on every call, which runs for each player streaming update (audit round 2, PERF-4).
@@ -128,7 +146,8 @@ internal sealed class ChunkStreamer
             for (int i = 0; i < resident.Length; i++)
             {
                 Chunk2D chunk = resident[i];
-                if (Math.Max(Math.Abs(chunk.ChunkX - centerChunkX), Math.Abs(chunk.ChunkY - centerChunkY)) > evictRadius)
+                if (Math.Max(Math.Abs(chunk.ChunkX - centerChunkX), Math.Abs(chunk.ChunkY - centerChunkY)) > evictRadius &&
+                    !this.IsKeptLocked(chunk.ChunkX, chunk.ChunkY))
                 {
                     _evictionBuffer.Add(chunk.Key);
                 }
@@ -148,6 +167,30 @@ internal sealed class ChunkStreamer
                 this.RebuildActiveSnapshotLocked();
             }
         }
+    }
+
+    /// <summary>Forgets a stream's centre, so its chunks are evicted by the next streaming step (a player left).</summary>
+    /// <param name="stream">The stream passed to <see cref="Stream"/>.</param>
+    public void Release(ulong stream)
+    {
+        lock (_gate)
+        {
+            _ = _keepers.Remove(stream);
+        }
+    }
+
+    // Call under the lock. Whether a remembered stream still keeps the chunk.
+    private bool IsKeptLocked(int chunkX, int chunkY)
+    {
+        foreach ((int x, int y, int radius) in _keepers.Values)
+        {
+            if (Math.Max(Math.Abs(chunkX - x), Math.Abs(chunkY - y)) <= radius)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Call under the lock. Publishes a fully built chunk to _active; the caller rebuilds the snapshot.

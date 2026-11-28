@@ -6,6 +6,7 @@ using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -23,18 +24,53 @@ public sealed class MultiStreamEvictionTests
     private const int Apart = 30; // chunks between the two players, beyond 2 x EvictRadius
 
     [Fact]
-    public void UpdateAroundPosition_TwoPlayersFarApart_EvictsTheOtherPlayersChunks()
+    public void UpdateAroundPosition_TwoPlayersFarApart_KeepsBothPlayersChunksWithoutRebuildingThem()
     {
         ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), TileSize);
         Step(world, 1UL, 0, 0);
         Step(world, 2UL, Apart, 0);
-        world.TryGetChunk(Apart, 0, out _).Should().BeTrue();
+        world.TryGetChunk(Apart, 0, out Chunk2D? nearTwo).Should().BeTrue();
+        world.TryGetChunk(0, 0, out Chunk2D? nearOne).Should().BeTrue();
+        int resident = world.LoadedChunkCount;
 
+        for (int i = 0; i < 4; i++)
+        {
+            Step(world, 1UL, 0, 0);
+            Step(world, 2UL, Apart, 0);
+        }
+
+        world.TryGetChunk(Apart, 0, out Chunk2D? nearTwoAfter).Should().BeTrue();
+        world.TryGetChunk(0, 0, out Chunk2D? nearOneAfter).Should().BeTrue();
+        nearTwoAfter.Should().BeSameAs(nearTwo, "player 1's steps never evicted it, so it was never rebuilt");
+        nearOneAfter.Should().BeSameAs(nearOne);
+        world.LoadedChunkCount.Should().Be(resident, "both players' chunks stay; nothing else was loaded");
+    }
+
+    [Fact]
+    public void ReleaseStream_APlayerLeft_TheNextStepEvictsItsChunks()
+    {
+        ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), TileSize);
+        Step(world, 1UL, 0, 0);
+        Step(world, 2UL, Apart, 0);
+
+        world.ReleaseStream(2UL);
         Step(world, 1UL, 0, 0);
 
-        // Characterisation: player 1's step evicts every chunk beyond 8 of player 1, the chunks player 2 stands in too,
-        // and player 2's next step regenerates them.
-        world.TryGetChunk(Apart, 0, out _).Should().BeFalse();
+        world.TryGetChunk(Apart, 0, out _).Should().BeFalse("no player keeps it any more");
+        world.TryGetChunk(0, 0, out _).Should().BeTrue();
+    }
+
+    [Fact]
+    public void UpdateAroundPosition_AnonymousStream_IsNotRemembered()
+    {
+        // Stream 0 (the client, the server's startup call at the spawn) keeps nothing once a later step moves on, so the
+        // startup area is not held resident for ever.
+        ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), TileSize);
+        Step(world, 0UL, 0, 0);
+        Step(world, 1UL, Apart, 0);
+
+        world.TryGetChunk(0, 0, out _).Should().BeFalse();
+        world.TryGetChunk(Apart, 0, out _).Should().BeTrue();
     }
 
     [Fact]
@@ -58,6 +94,23 @@ public sealed class MultiStreamEvictionTests
         // Every chunk edit is recorded in the delta store and re-applied on rebuild, so no eviction loses it.
         world.TryGetPropAt(wx, wy, out MapProp after).Should().BeTrue();
         after.Destructibility.CurrentDurability.Should().Be(target.Destructibility.CurrentDurability - 1f);
+    }
+
+    [Fact]
+    public void UpdateAroundPosition_TwoStillPlayersFarApart_AllocatesNothing()
+    {
+        ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), TileSize);
+        Step(world, 1UL, 0, 0);
+        Step(world, 2UL, Apart, 0);
+
+        // Nothing loads or evicts: the eviction pass checks every resident chunk against both players' keeps.
+        AllocationResult window = AllocationProbe.Measure(200, warmupIterations: 20, i =>
+        {
+            Step(world, 1UL, 0, 0);
+            Step(world, 2UL, Apart, 0);
+        });
+
+        window.Bytes.Should().Be(0, $"a streaming step that changes nothing allocates nothing ({window})");
     }
 
     private static void Step(ChunkWorld2D world, ulong stream, int chunkX, int chunkY)
