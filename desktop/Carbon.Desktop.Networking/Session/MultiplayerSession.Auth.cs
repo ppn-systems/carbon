@@ -378,7 +378,7 @@ public sealed partial class MultiplayerSession
         lock (_worldGate)
         {
             _remoteEntities.Clear();
-            _requestedChunks.Clear();
+            _chunkRequests.Reset();
             _combatEvents.Clear();
             _propImpactEvents.Clear();
             _strikeImpactEvents.Clear();

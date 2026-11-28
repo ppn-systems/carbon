@@ -14,6 +14,7 @@ using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Testing;
 using Nalix.Abstractions.Primitives;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
 
 namespace Carbon.Host.Tests;
 
@@ -55,7 +56,8 @@ internal sealed class TickAllocationHarness : IDisposable
     /// <param name="overrides">Developer overrides applied before anyone enters (for example status effects on entry).</param>
     /// <param name="economy">Economy (loot tables, items) the world runs with; none when <see langword="null"/>.</param>
     /// <param name="inventoryBlob">Serialized bag every character enters with; an empty bag when <see langword="null"/>.</param>
-    public static TickAllocationHarness Create(int players, IWorldOutboundSink? sink = null, WorldDebugOverrides? overrides = null, GameEconomy? economy = null, byte[]? inventoryBlob = null)
+    /// <param name="logger">Logger the world writes to; none when <see langword="null"/>.</param>
+    public static TickAllocationHarness Create(int players, IWorldOutboundSink? sink = null, WorldDebugOverrides? overrides = null, GameEconomy? economy = null, byte[]? inventoryBlob = null, ILogger? logger = null)
     {
         string dbPath = Path.Combine(Path.GetTempPath(), $"carbon-tick-alloc-{Guid.NewGuid():N}.db");
         SqliteConnectionFactory factory = new($"Data Source={dbPath}");
@@ -71,7 +73,8 @@ internal sealed class TickAllocationHarness : IDisposable
             characters,
             sink ?? new NullOutboundSink(),
             economy: economy,
-            entropy: TestGameplayEntropy.Create(1337UL));
+            entropy: TestGameplayEntropy.Create(1337UL),
+            logger: logger);
         world.InitializeFromStoreAsync().GetAwaiter().GetResult();
         if (overrides is not null)
         {

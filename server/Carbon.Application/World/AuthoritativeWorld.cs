@@ -71,6 +71,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 {
     private const float BaseWalkSpeed = 250f;
     private const float SprintSpeed = 450f;
+
+    /// <summary>Chunks streamed around each player, on each axis (the client requests the same ring).</summary>
+    private const int StreamChunkRadius = 2;
+
+    /// <summary>
+    /// Chunks around its own chunk a player may request, on each axis (audit SA-10): the stream radius plus one chunk of
+    /// slack for the client's predicted position and requests in flight across a chunk boundary or a teleport.
+    /// </summary>
+    internal const int ChunkRequestReach = StreamChunkRadius + 1;
     private const float DefaultEntityRadius = 7f;
     private const uint PlayerLayer = 1U;
     private const uint MonsterLayer = 2U;
@@ -133,6 +142,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     private ulong _nextNetworkId = 1000UL;
     private ulong _currentTick;
+
+    // Audit SA-10: chunk requests refused since the last warning, and the earliest tick of the next warning.
+    private long _refusedChunkRequests;
+    private ulong _nextChunkRefusalLogTick;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthoritativeWorld"/> class.
@@ -553,7 +566,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             }
 
             Vector2 originSpawn = _chunkWorld.SpawnWorldPosition;
-            _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: 2, evictionRadius: 8);
+            _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: StreamChunkRadius, evictionRadius: 8);
             _settlements.PopulateAround(originSpawn, radius: 2);
         }
     }
@@ -590,7 +603,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             bool diedBeforeLogout = character.CurrentHealth <= 0f;
             Vector2 spawnPos = _debugSpawnPosition
                 ?? (diedBeforeLogout ? _chunkWorld.SpawnWorldPosition : new Vector2(character.PositionX, character.PositionY));
-            _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: 2, evictionRadius: 8);
+            _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: StreamChunkRadius, evictionRadius: 8);
             _settlements.PopulateAround(spawnPos, radius: 2);
 
             ulong networkId = ++_nextNetworkId;
