@@ -93,9 +93,15 @@ public sealed class HostRuntimeOptions
     /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
     /// </summary>
-    public static HostRuntimeOptions FromEnvironment()
+    public static HostRuntimeOptions FromEnvironment() => FromEnvironment(Environment.GetEnvironmentVariable);
+
+    /// <summary>Loads options from <paramref name="readEnv"/> (environment variable reader) with safe local SQLite defaults.</summary>
+    /// <param name="readEnv">Environment variable reader.</param>
+    /// <returns>The options.</returns>
+    public static HostRuntimeOptions FromEnvironment(Func<string, string?> readEnv)
     {
-        string rawProvider = Environment.GetEnvironmentVariable("CARBON_DB_PROVIDER") ?? string.Empty;
+        ArgumentNullException.ThrowIfNull(readEnv);
+        string rawProvider = readEnv("CARBON_DB_PROVIDER") ?? string.Empty;
         DatabaseProvider provider = string.Equals(rawProvider.Trim(), "postgres", StringComparison.OrdinalIgnoreCase)
             ? DatabaseProvider.Postgres
             : DatabaseProvider.Sqlite;
@@ -104,47 +110,47 @@ public sealed class HostRuntimeOptions
             ? "Host=localhost;Port=5432;Database=carbon;Username=carbon;Password=carbon"
             : "Data Source=carbon_world.db";
 
-        string connectionString = Environment.GetEnvironmentVariable("CARBON_DB_CONNECTION") is { Length: > 0 } conn
+        string connectionString = readEnv("CARBON_DB_CONNECTION") is { Length: > 0 } conn
             ? conn
             : defaultConn;
 
-        ulong seed = ulong.TryParse(Environment.GetEnvironmentVariable("CARBON_WORLD_SEED"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong s)
+        ulong seed = ulong.TryParse(readEnv("CARBON_WORLD_SEED"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong s)
             ? s
             : 1337UL;
 
-        ushort tickRate = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_TICK_RATE"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort tr) && tr > 0
+        ushort tickRate = ushort.TryParse(readEnv("CARBON_TICK_RATE"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort tr) && tr > 0
             ? tr
             : (ushort)30;
 
-        ushort wsPort = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_WS_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort wp)
+        ushort wsPort = ushort.TryParse(readEnv("CARBON_WS_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort wp)
             ? wp
             : (ushort)57206;
 
-        ushort tcpPort = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_TCP_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort tp) && tp > 0
+        ushort tcpPort = ushort.TryParse(readEnv("CARBON_TCP_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort tp) && tp > 0
             ? tp
             : (ushort)57207;
 
-        ushort udpPort = ushort.TryParse(Environment.GetEnvironmentVariable("CARBON_UDP_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort up) && up > 0
+        ushort udpPort = ushort.TryParse(readEnv("CARBON_UDP_PORT"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ushort up) && up > 0
             ? up
             : (ushort)57208;
 
-        int roadWorkers = int.TryParse(Environment.GetEnvironmentVariable("CARBON_ROAD_PREWARM_WORKERS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int rw) && rw >= 0
+        int roadWorkers = int.TryParse(readEnv("CARBON_ROAD_PREWARM_WORKERS"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int rw) && rw >= 0
             ? rw
             : 2;
 
-        string wsHost = Environment.GetEnvironmentVariable("CARBON_WS_HOST") is { Length: > 0 } host
+        string wsHost = readEnv("CARBON_WS_HOST") is { Length: > 0 } host
             ? host.Trim()
             : "localhost";
 
-        string wsPath = Environment.GetEnvironmentVariable("CARBON_WS_PATH") is { Length: > 0 } path
+        string wsPath = readEnv("CARBON_WS_PATH") is { Length: > 0 } path
             ? path
             : "/ws/";
 
-        string configDirectory = Environment.GetEnvironmentVariable("CARBON_CONFIG_DIR") is { Length: > 0 } dir
+        string configDirectory = readEnv("CARBON_CONFIG_DIR") is { Length: > 0 } dir
             ? dir.Trim()
             : string.Empty;
 
-        (GameplayKey? gameplaySecret, ulong? gameplayBootSalt, int gameplayEpochSeconds) = ReadGameplayEntropy(Environment.GetEnvironmentVariable);
+        (GameplayKey? gameplaySecret, ulong? gameplayBootSalt, int gameplayEpochSeconds) = ReadGameplayEntropy(readEnv);
 
         return new HostRuntimeOptions
         {
@@ -159,8 +165,8 @@ public sealed class HostRuntimeOptions
             TcpPort = tcpPort,
             UdpPort = udpPort,
             ConfigDirectory = configDirectory,
-            ConfigHotReload = !string.Equals(Environment.GetEnvironmentVariable("CARBON_CONFIG_HOT_RELOAD"), "0", StringComparison.Ordinal),
-            DebugOverrides = ReadDebugOverrides(Environment.GetEnvironmentVariable),
+            ConfigHotReload = !string.Equals(readEnv("CARBON_CONFIG_HOT_RELOAD"), "0", StringComparison.Ordinal),
+            DebugOverrides = ReadDebugOverrides(readEnv),
             GameplaySecret = gameplaySecret,
             GameplayBootSalt = gameplayBootSalt,
             GameplayEpochSeconds = gameplayEpochSeconds,
