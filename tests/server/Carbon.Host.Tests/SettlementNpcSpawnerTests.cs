@@ -45,7 +45,7 @@ public sealed class SettlementNpcSpawnerTests
     }
 
     [Fact]
-    public void PopulateAround_TravelOutAndBack_KeepsEveryChunkPassedAndSpawnsNothingTwice()
+    public void PopulateAround_TravelOutAndBack_KeepsOnlyResidentChunksAndSpawnsNothingTwice()
     {
         Harness h = new();
         const float chunkWorld = Chunk2D.Size * 32f;
@@ -67,9 +67,23 @@ public sealed class SettlementNpcSpawnerTests
 
         h.Actors.Count.Should().Be(actorsOut, "the way back passes only sites already populated");
 
-        // ALLOC-7 characterisation: every chunk passed stays in the set (35 columns of 5), long after it was evicted.
-        h.Spawner.PopulatedChunkCount.Should().Be(35 * 5);
-        h.Chunks.LoadedChunkCount.Should().BeLessThan(35 * 5);
+        // ALLOC-7: an evicted chunk leaves the set; the 35 columns of 5 passed are not all kept.
+        h.Spawner.PopulatedChunkCount.Should().BeLessThanOrEqualTo(h.Chunks.LoadedChunkCount);
+    }
+
+    [Fact]
+    public void PopulateAround_ChunksNotLoaded_RecordsNoneUntilTheyAre()
+    {
+        Harness h = new();
+        Vector2 far = new(100.5f * Chunk2D.Size * 32f, 0.5f * Chunk2D.Size * 32f);
+
+        h.Spawner.PopulateAround(far, radius: 2);
+        int before = h.Spawner.PopulatedChunkCount;
+        h.Chunks.UpdateAroundPosition(far, chunkRadius: 2, evictionRadius: 8);
+        h.Spawner.PopulateAround(far, radius: 2);
+
+        before.Should().Be(0, "a chunk not loaded is not recorded, so no eviction would ever remove it");
+        h.Spawner.PopulatedChunkCount.Should().Be(25);
     }
 
     [Fact]

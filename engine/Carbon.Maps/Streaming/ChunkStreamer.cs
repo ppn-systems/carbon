@@ -40,6 +40,9 @@ internal sealed class ChunkStreamer
         _tileSize = tileSize;
     }
 
+    /// <summary>Raised with a chunk's packed key when <see cref="Stream"/> evicts it, under the chunk lock.</summary>
+    public event Action<long>? Evicted;
+
     /// <summary>Gets a zero-allocation read-only span over the currently resident chunks.</summary>
     public ReadOnlySpan<Chunk2D> Active => Volatile.Read(ref _activeSnapshot);
 
@@ -140,6 +143,7 @@ internal sealed class ChunkStreamer
                 {
                     _pool.Enqueue(evicted);
                     changed = true;
+                    this.Evicted?.Invoke(_evictionBuffer[i]);
                 }
             }
 
