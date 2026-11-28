@@ -68,6 +68,45 @@ public sealed class WorldTickHostedRunnerTests
         world.Calls.Should().EndWith(["FailPendingCommands", "FlushDirtyPersistence", "StopBackgroundBuilds"]);
     }
 
+    [Fact]
+    public async Task HostLifetime_WhenATickThrows_StopsTheNetworkAppAndExitsOne()
+    {
+        // TS-5 end to end: the failed tick ends the app that would otherwise keep accepting players, and the host exits 1.
+        RecordingLoop world = new() { ThrowOnTick = 3 };
+        using CancellationTokenSource stop = new();
+        WorldTickHostedRunner runner = new(world, NullLogger<WorldTickHostedRunner>.Instance, stop.Cancel);
+        bool appStopped = false;
+
+        int exitCode = await HostLifetime.RunAsync(
+            async ct =>
+            {
+                await Task.Delay(Timeout.Infinite, ct).ContinueWith(_ => { }, TaskScheduler.Default).ConfigureAwait(false);
+                appStopped = true;
+            },
+            runner,
+            stop).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(true);
+
+        exitCode.Should().Be(1);
+        appStopped.Should().BeTrue("the network app ran until the failed tick stopped it");
+        world.Calls.Should().EndWith(["FailPendingCommands", "FlushDirtyPersistence", "StopBackgroundBuilds"]);
+    }
+
+    [Fact]
+    public async Task HostLifetime_WhenTheAppStops_StopsTheTicksAndExitsZero()
+    {
+        RecordingLoop world = new();
+        using CancellationTokenSource stop = new();
+        WorldTickHostedRunner runner = new(world, NullLogger<WorldTickHostedRunner>.Instance, stop.Cancel);
+
+        int exitCode = await HostLifetime.RunAsync(
+            _ => Task.Run(() => world.WaitForTicks(3)),
+            runner,
+            stop).WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(true);
+
+        exitCode.Should().Be(0);
+        world.Calls.Should().EndWith(["FailPendingCommands", "FlushDirtyPersistence", "StopBackgroundBuilds"]);
+    }
+
     private sealed class CapturingLogger : ILogger<WorldTickHostedRunner>
     {
         public List<string> Critical { get; } = [];
