@@ -395,7 +395,7 @@ public sealed partial class MultiplayerSession
         lock (_worldGate)
         {
             _remoteEntities.Clear();
-            _requestedChunks.Clear();
+            _chunkRequests.Reset();
             _dirtyChunks.Clear();
             _reconciler.Clear();
             _clientTick = 0U;
@@ -691,18 +691,12 @@ public sealed partial class MultiplayerSession
 
         int cx0 = Chunk2D.ToChunkCoord((int)MathF.Floor(pos.X / _tileSize));
         int cy0 = Chunk2D.ToChunkCoord((int)MathF.Floor(pos.Y / _tileSize));
-        for (int dy = -2; dy <= 2; dy++)
+        Span<long> keys = stackalloc long[ChunkDeltaRequests.MaxPerCollect];
+        int count = _chunkRequests.Collect(cx0, cy0, keys);
+        for (int i = 0; i < count; i++)
         {
-            for (int dx = -2; dx <= 2; dx++)
-            {
-                int cx = cx0 + dx;
-                int cy = cy0 + dy;
-                long key = Chunk2D.PackKey(cx, cy);
-                if (_requestedChunks.TryAdd(key, 0U))
-                {
-                    _ = this.SyncChunkDeltaAsync(cx, cy);
-                }
-            }
+            (int cx, int cy) = Chunk2D.UnpackKey(keys[i]);
+            _ = this.SyncChunkDeltaAsync(cx, cy);
         }
     }
 
@@ -714,6 +708,8 @@ public sealed partial class MultiplayerSession
             return;
         }
 
+        long key = Chunk2D.PackKey(cx, cy);
+        bool receivedDelta = false;
         try
         {
             RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
@@ -733,7 +729,7 @@ public sealed partial class MultiplayerSession
                 }
 
                 ChunkDelta domainDelta = ChunkDeltaPacketMapper.FromPacket(packet);
-                _requestedChunks[Chunk2D.PackKey(cx, cy)] = packet.Revision;
+                receivedDelta = true;
 
                 // Imported on the main thread so the renderer never reads a chunk mid-import (audit TS-2).
                 this.PostWorldMutation(() =>
@@ -747,10 +743,12 @@ public sealed partial class MultiplayerSession
                     _dirtyChunks.Add((cx, cy));
                 });
             }
+
+            _chunkRequests.Completed(key, receivedDelta ? ChunkRequestResult.Delta : ChunkRequestResult.NoDelta);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _ = _requestedChunks.TryRemove(Chunk2D.PackKey(cx, cy), out _);
+            _chunkRequests.Completed(key, ChunkRequestResult.Failed);
         }
     }
 

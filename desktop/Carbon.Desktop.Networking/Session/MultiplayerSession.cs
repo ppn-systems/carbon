@@ -52,7 +52,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private readonly List<IDisposable> _tcpSubscriptions = [];
     private readonly List<IDisposable> _udpSubscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();
-    private readonly ConcurrentDictionary<long, uint> _requestedChunks = new();
+    private readonly ChunkDeltaRequests _chunkRequests = new();
     private readonly ConcurrentDictionary<Guid, string> _characterNames = new();
     private readonly RemoteViewBuffer _remoteViewsA = new();
     private readonly RemoteViewBuffer _remoteViewsB = new();
@@ -882,7 +882,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         lock (_worldGate)
         {
             _remoteEntities.Clear();
-            _requestedChunks.Clear();
+            _chunkRequests.Reset();
             _combatEvents.Clear();
             _propImpactEvents.Clear();
             _itemBreakEvents.Clear();
