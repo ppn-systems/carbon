@@ -96,7 +96,7 @@ internal sealed class WorldInteractionInput
                 {
                     RemoteEntityView entity = remotes[i];
                     if (entity.Kind == EntityKind.Npc &&
-                        _session.GetNpcCapabilities(entity.ArchetypeId).HasFlag(NpcCapabilities.ForgeArtisan) &&
+                        (_session.GetNpcCapabilities(entity.ArchetypeId) & NpcCapabilities.ForgeArtisan) != 0 &&
                         Vector2.DistanceSquared(aimWorld, entity.Position) <= (24f * 24f) &&
                         _session.IsNearForgeStation())
                     {

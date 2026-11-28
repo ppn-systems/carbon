@@ -60,6 +60,48 @@ public sealed class HotPathGuardTests
         Violations.ShouldBeEmpty(s_linqAllowlist.Where(e => !found.Contains(e)), "fixed entries must be removed from the allowlist");
     }
 
+    /// <summary>
+    /// No <c>Enum.HasFlag</c> on the tick, packet and frame paths (audit round 3, ALLOC-13 and ALLOC-14). Do not relax
+    /// this into an allowlist or a probe:
+    /// <list type="bullet">
+    /// <item><description><c>HasFlag</c> is boxing-free only in optimized code. A method starts unoptimized (tier 0), and
+    /// there every call boxes both operands: 48 B. A short probe measured 96 B per pickaxe strike on flora and 48 B per
+    /// skill access check.</description></item>
+    /// <item><description>The runtime optimizes a method only after it has been called for a while, and it keeps deferring
+    /// that while other new code is being compiled. A busy process, a server warming up or a full test suite, runs tier-0
+    /// code far longer than a quiet one. The kill guard (<c>KillRewardAllocationTests</c>) passed alone and saw a steady
+    /// 4,320 B in the full Host suite, from the melee reach check; holding tier-up off
+    /// (<c>DOTNET_TC_CallCountingDelayMs=600000</c>) reproduced it exactly.</description></item>
+    /// <item><description>So an allocation probe cannot guard it: a method another test already tiered up allocates nothing.
+    /// The call itself is the rule. Test the bits instead: <c>(flags &amp; Flag) != 0</c> for a single-bit flag, or
+    /// <c>(flags &amp; Flags) == Flags</c> for several.</description></item>
+    /// </list>
+    /// <c>Enum.IsDefined</c>, <c>GetValues</c> and <c>GetNames</c> have a similar hidden cost (a full GC can free the enum
+    /// metadata they read, ALLOC-13), but every call in these folders is load-time validation today, so they are not banned.
+    /// </summary>
+    [Fact]
+    public void HotPathCode_ShouldNotCallEnumHasFlag()
+    {
+        Violations.ShouldBeEmpty(
+            FindHasFlagCalls().Select(call => $"{call.Path}:{call.Line}"),
+            "Enum.HasFlag allocates until its caller is optimized; test the bits directly on the tick and frame paths (performance-aot)");
+    }
+
+    // Every x.HasFlag(y) call in hot-path code.
+    private static IEnumerable<(string Path, int Line)> FindHasFlagCalls()
+    {
+        foreach ((string path, CompilationUnitSyntax root) in ParseSources(s_hotPathFolders))
+        {
+            foreach (InvocationExpressionSyntax call in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
+            {
+                if (call.Expression is MemberAccessExpressionSyntax { Name.Identifier.Text: "HasFlag" })
+                {
+                    yield return (path, call.GetLocation().GetLineSpan().StartLinePosition.Line + 1);
+                }
+            }
+        }
+    }
+
     private static IEnumerable<string> FindLinqImports()
     {
         foreach ((string path, CompilationUnitSyntax root) in ParseSources(s_hotPathFolders))

@@ -334,7 +334,7 @@ internal sealed class WorldEntityOverlayRenderer
         // Near a forge artisan (the village blacksmith too), U opens the forge (ADR-024). What E does is shown by the
         // interact prompt over its one target, not on name tags (InteractionController).
         if (r.Kind == EntityKind.Npc && distSq <= (175f * 175f) &&
-            WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan))
+            (WorldActorCatalog.GetNpcSpec(r.ArchetypeId).Capabilities & NpcCapabilities.ForgeArtisan) != 0)
         {
             return GameText.Format("hud.nameplate.forge", new TextArg("name", r.Name));
         }

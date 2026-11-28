@@ -418,7 +418,7 @@ public sealed partial class MultiplayerSession : IWorldSession
             {
                 RemoteEntityState s = kvp.Value;
                 if (s.Kind == EntityKind.Npc &&
-                    WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
+                    (WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities & NpcCapabilities.ForgeArtisan) != 0 &&
                     Vector2.DistanceSquared(playerPos, s.Position) <= maxDistSq)
                 {
                     return true;
@@ -451,7 +451,7 @@ public sealed partial class MultiplayerSession : IWorldSession
                 {
                     RemoteEntityState s = kvp.Value;
                     if (s.Kind == EntityKind.Npc &&
-                        WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
+                        (WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities & NpcCapabilities.ForgeArtisan) != 0 &&
                         Vector2.DistanceSquared(playerPos, s.Position) <= table.BlacksmithReach * table.BlacksmithReach)
                     {
                         return table.BlacksmithTier;
