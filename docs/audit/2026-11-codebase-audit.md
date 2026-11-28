@@ -220,7 +220,7 @@ Verified clean: no duplicate opcodes, `[SerializeOrder]` contiguous, no static s
 | :--- | :--- | :--- | :--- |
 | DET-1 | Low | `ChunkDeltaPacketMapper` iterates `Dictionary` into packets (`engine/Carbon.Maps/Networking/ChunkDeltaPacketMapper.cs:38,54,70`), while `ChunkDelta.Encode` deliberately sorts (`ChunkDelta.cs:257-259`). | Sort keys before mapping. |
 | DET-2 | Low | Commands apply in network-arrival order, and `SimulationCommand.ClientTick` is ignored (`WorldSimulation.cs:39,654`). | Stable-sort each tick's commands by (entity, ClientTick, sequence). |
-| DET-3 | Medium | Entity separation runs after world collision and pushes bodies into walls, and also pushes static props (`engine/Carbon.Simulation/ECS/Systems/EntityCollisionSystem.cs:147-155`). | Re-resolve against world physics after separation; weight by mobility. |
+| DET-3 | Medium | Entity separation runs after world collision and pushes bodies into walls, and also pushes static props (`engine/Carbon.Simulation/ECS/Systems/EntityCollisionSystem.cs:147-155`). | Re-resolve against world physics after separation; weight by mobility. **Fixed:** separated bodies are resolved against world physics again (by terrain mask), held by `SeparationAgainstWallsTests`. Mobility weighting left out: no solid entity lacks a velocity today (loot is a trigger). |
 
 ## 12. Test gaps
 
