@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -19,33 +20,73 @@ public sealed class WorldTickHostedRunnerTests
     {
         // ADR-045 D10: once no tick will run again, the world's background generation builds stop, and only then.
         RecordingLoop world = new();
-        WorldTickHostedRunner runner = new(world, NullLogger<WorldTickHostedRunner>.Instance);
         using CancellationTokenSource cts = new();
+        WorldTickHostedRunner runner = new(world, NullLogger<WorldTickHostedRunner>.Instance, cts.Cancel);
 
-        Task run = runner.RunAsync(cts.Token);
+        Task<WorldTickRunOutcome> run = runner.RunAsync(cts.Token);
         world.WaitForTicks(3).Should().BeTrue("the runner ticks the world");
         await cts.CancelAsync().ConfigureAwait(true);
-        await run.ConfigureAwait(true);
+        (await run.ConfigureAwait(true)).Should().Be(WorldTickRunOutcome.Stopped);
 
         world.Calls.Should().EndWith(["FailPendingCommands", "FlushDirtyPersistence", "StopBackgroundBuilds"]);
         world.Calls.Should().ContainSingle(c => c == "StopBackgroundBuilds");
     }
 
     [Fact]
-    public async Task RunAsync_WhenATickThrows_FaultsButNeverTellsTheHost()
+    public async Task RunAsync_WhenATickThrows_StopsTheHostAfterAFinalFlushAndExitsNonZero()
     {
-        // Audit TS-5 characterisation: the exception ends the loop and the shutdown work still runs, but nothing stops
-        // the host. Program awaits the tick task only after the network app returns, so the host keeps accepting players
-        // into a world that no longer ticks.
+        // Audit TS-5: a failed tick ends the run, logs the tick and the exception, stops the host (so no player joins a
+        // world that no longer ticks), still answers pending commands and flushes, and reports a non-zero exit code.
         RecordingLoop world = new() { ThrowOnTick = 3 };
-        WorldTickHostedRunner runner = new(world, NullLogger<WorldTickHostedRunner>.Instance);
+        CapturingLogger logger = new();
         using CancellationTokenSource host = new();
+        WorldTickHostedRunner runner = new(world, logger, host.Cancel);
 
-        Func<Task> run = () => runner.RunAsync(host.Token);
+        WorldTickRunOutcome outcome = await runner.RunAsync(host.Token).ConfigureAwait(true);
 
-        await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("tick 3 failed");
+        outcome.Should().Be(WorldTickRunOutcome.Faulted);
+        ((int)outcome).Should().NotBe(0, "the process exits non-zero so its supervisor restarts it");
+        host.IsCancellationRequested.Should().BeTrue("the host is stopped");
+        world.CurrentTick.Should().Be(3UL, "the world is never ticked again after a failed tick");
         world.Calls.Should().EndWith(["FailPendingCommands", "FlushDirtyPersistence", "StopBackgroundBuilds"]);
-        host.IsCancellationRequested.Should().BeFalse("nothing tells the host that the world stopped");
+        logger.Critical.Should().ContainSingle().Which.Should().Match("World tick 3 failed*");
+        logger.CriticalExceptions.Should().ContainSingle().Which.Should().BeOfType<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenATickThrowsAndTheFinalFlushFails_StillStopsTheHostAndExitsNonZero()
+    {
+        // The final flush is best effort: its failure is logged and does not hide the tick failure.
+        RecordingLoop world = new() { ThrowOnTick = 2, FailFlush = true };
+        using CancellationTokenSource host = new();
+        WorldTickHostedRunner runner = new(world, NullLogger<WorldTickHostedRunner>.Instance, host.Cancel);
+
+        WorldTickRunOutcome outcome = await runner.RunAsync(host.Token).ConfigureAwait(true);
+
+        outcome.Should().Be(WorldTickRunOutcome.Faulted);
+        host.IsCancellationRequested.Should().BeTrue();
+        world.Calls.Should().EndWith(["FailPendingCommands", "FlushDirtyPersistence", "StopBackgroundBuilds"]);
+    }
+
+    private sealed class CapturingLogger : ILogger<WorldTickHostedRunner>
+    {
+        public List<string> Critical { get; } = [];
+
+        public List<Exception?> CriticalExceptions { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Critical)
+            {
+                this.Critical.Add(formatter(state, exception));
+                this.CriticalExceptions.Add(exception);
+            }
+        }
     }
 
     private sealed class RecordingLoop : IWorldSimulationLoop
@@ -85,10 +126,13 @@ public sealed class WorldTickHostedRunnerTests
             }
         }
 
+        /// <summary>Gets a value indicating whether every flush throws.</summary>
+        public bool FailFlush { get; init; }
+
         public Task FlushDirtyPersistenceAsync(CancellationToken ct = default)
         {
             this.Record("FlushDirtyPersistence");
-            return Task.CompletedTask;
+            return this.FailFlush ? Task.FromException(new InvalidOperationException("store down")) : Task.CompletedTask;
         }
 
         public void FailPendingCommands() => this.Record("FailPendingCommands");
