@@ -6,7 +6,10 @@ using System.Numerics;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.World;
 using Carbon.Contracts.Common;
+using Carbon.Abstractions.World;
 using Carbon.Contracts.Maps.S2C;
+using Carbon.Simulation.ECS;
+using Carbon.Simulation.ECS.Components;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Settlements;
@@ -116,6 +119,51 @@ public sealed class ChunkRequestReachTests
         _ = world.TryCreateChunkDeltaPacket(harness.Connections[0], cx, cy, 0U, out _);
         logger.Warnings.Should().HaveCount(2).And.Contain(w => w.StartsWith("Refused 100 chunk requests", StringComparison.Ordinal),
             "the next warning, a minute later, counts the refusals since the last one");
+    }
+
+    [Fact]
+    public void TryCreateChunkDeltaPacket_ASprintRequestedFromThePredictedPosition_IsNeverRefused()
+    {
+        // The client requests the ring of 2 around its predicted position, which leads the server's. With a lead of half
+        // a second at twice the sprint speed (450 px, under half a chunk), no request crosses the reach of 3.
+        CapturingLogger logger = new();
+        using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1, logger: logger);
+        AuthoritativeWorld world = harness.World;
+        ulong connection = harness.Connections[0];
+        world.TryGetSessionByConnection(connection, out ConnectedPlayerSession? session).Should().BeTrue();
+        world.Simulation.TryGetEntityByNetworkId(session!.PlayerNetworkId, out Entity player).Should().BeTrue();
+        const float topSpeed = 450f * 2f;
+        const float leadPx = topSpeed * 0.5f;
+        float stepPx = topSpeed / world.TickRate;
+        Vector2 start = world.Simulation.Entities.GetTransform(player).Position;
+        int crossed = 0;
+        int lastCx = int.MinValue;
+        for (int tick = 0; tick < world.TickRate * 20; tick++)
+        {
+            // The server's position, moved at the top speed (terrain would stop a real walk; only the position matters).
+            Vector2 server = start + new Vector2(stepPx * tick, 0f);
+            world.Simulation.Entities.SetTransform(player, new Transform2D(server));
+            Vector2 predicted = server + new Vector2(leadPx, 0f);
+            int cx = Chunk2D.ToChunkCoord((int)MathF.Floor(predicted.X / world.TileSize));
+            int cy = Chunk2D.ToChunkCoord((int)MathF.Floor(predicted.Y / world.TileSize));
+            if (cx != lastCx)
+            {
+                crossed++;
+                lastCx = cx;
+            }
+
+            for (int dy = -2; dy <= 2; dy++)
+            {
+                for (int dx = -2; dx <= 2; dx++)
+                {
+                    _ = world.TryCreateChunkDeltaPacket(connection, cx + dx, cy + dy, 0U, out MapChunkDelta? packet);
+                    packet?.Dispose();
+                }
+            }
+        }
+
+        crossed.Should().BeGreaterThan(2, "the sprint crossed several chunk boundaries");
+        logger.Warnings.Should().NotContain(w => w.StartsWith("Refused", StringComparison.Ordinal));
     }
 
     // The chunk of a village building at least minChunks away from the spawn chunk, on both axes.
