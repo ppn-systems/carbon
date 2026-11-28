@@ -20,7 +20,7 @@ public sealed class RoadPrewarmCoverageTests
     private const int LoadRadius = 2; // the server's StreamChunkRadius
 
     [Fact]
-    public void RoadPrewarmTiles_OneChunkStepInAnyDirection_SomeLoadedChunkReadsASiteNotQueuedAStepAhead()
+    public void RoadPrewarmTiles_OneChunkStepInAnyDirection_EveryLoadedChunkReadsOnlySitesQueuedAStepAhead()
     {
         int uncovered = 0;
 
@@ -39,9 +39,7 @@ public sealed class RoadPrewarmCoverageTests
             }
         }
 
-        // Characterisation: with no margin beyond the load radius, crossing a site boundary reads a site row (Reach + 1
-        // beyond the new chunk) that the previous step never queued.
-        uncovered.Should().BeGreaterThan(0);
+        uncovered.Should().Be(0, "the one-chunk margin covers every chunk a one-chunk step loads, site boundary or not");
     }
 
     // Chunks loaded at the step centred on (toX, toY) whose road query reads a site outside the prewarm of (fromX, fromY).
