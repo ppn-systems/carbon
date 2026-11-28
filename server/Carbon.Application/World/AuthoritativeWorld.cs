@@ -855,7 +855,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             return false;
         }
 
-        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+        _persistence.SnapshotOnLeave(state);
         _ = _players.ConnectionByNetworkId.Remove(state.Session.PlayerNetworkId);
         _replication.Untrack(connectionId);
         _chunkWorld.ReleaseStream(connectionId);

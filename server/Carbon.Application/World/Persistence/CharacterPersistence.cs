@@ -124,8 +124,8 @@ internal sealed class CharacterPersistence
     }
 
     /// <summary>
-    /// Flags the player for saving and, while its entity is in the world, snapshots its record now (serializing the
-    /// inventory when it changed since the last snapshot).
+    /// Flags the player for saving. The record is built once, by the next <see cref="CollectBatch"/> (audit ALLOC-13),
+    /// or by <see cref="SnapshotOnLeave"/> when the player leaves first.
     /// </summary>
     public void MarkDirty(PlayerState state, bool inventoryChanged)
     {
@@ -136,12 +136,21 @@ internal sealed class CharacterPersistence
         }
 
         state.PersistenceDirty = true;
-        if (!_simulation.Entities.IsAlive(state.Entity) || !_simulation.Entities.HasTransform(state.Entity))
-        {
-            return;
-        }
+    }
 
-        this.Snapshot(state, state.InventoryDirty);
+    /// <summary>
+    /// A player is leaving the world: snapshots its record, inventory included, while its entity still holds the live
+    /// position and health, so the next flush saves the state at leave.
+    /// </summary>
+    public void SnapshotOnLeave(PlayerState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        state.InventoryDirty = true;
+        state.PersistenceDirty = true;
+        if (_simulation.Entities.IsAlive(state.Entity) && _simulation.Entities.HasTransform(state.Entity))
+        {
+            this.Snapshot(state, serializeInventory: true);
+        }
     }
 
     /// <summary>Builds the player's current record (position, health, stats, inventory, progression, wallet, needs).</summary>
