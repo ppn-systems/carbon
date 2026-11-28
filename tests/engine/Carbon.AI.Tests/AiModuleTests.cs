@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Numerics;
 using Carbon.AI.Components;
 using Carbon.AI.Navigation;
@@ -78,6 +79,44 @@ public sealed class AiModuleTests
 
         waypoints.TryGetSteeringDirection(startPos, 32f, arrivalRadius: 4f, out Vector2 dir).Should().BeTrue();
         dir.Length().Should().BeApproximately(1f, 0.001f);
+    }
+
+    [Fact]
+    public void AiBehaviorSystem_CrowdBeyondTheAggroScratch_TargetsTheNearestPlayer()
+    {
+        // HP-11: 160 players ring the mob inside its aggro radius, more than its 64 aggro candidates; the nearest is the
+        // last spawned, so a scratch filled in grid order would leave it out.
+        WorldSimulation world = new(tickRate: 20);
+        world.RegisterSystem(new AiBehaviorSystem());
+        for (int i = 0; i < 160; i++)
+        {
+            float angle = i * (MathF.Tau / 160f);
+            Entity far = world.SpawnEntity(new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 70f, radius: 2f);
+            world.Entities.SetCollider(far, new Collider2D(ColliderKind.Circle, Radius: 2f, Layer: 2));
+            world.Entities.SetHealth(far, new HealthComponent(100f, 100f));
+        }
+
+        Entity nearest = world.SpawnEntity(new Vector2(30f, 0f), radius: 2f);
+        world.Entities.SetCollider(nearest, new Collider2D(ColliderKind.Circle, Radius: 2f, Layer: 2));
+        world.Entities.SetHealth(nearest, new HealthComponent(100f, 100f));
+
+        Entity mob = world.SpawnEntity(Vector2.Zero, radius: 5f);
+        world.Entities.SetCollider(mob, new Collider2D(ColliderKind.Circle, Radius: 5f, Layer: 4));
+        world.Entities.SetVelocity(mob, new Velocity2D(0f, 0f));
+        world.Entities.SetHealth(mob, new HealthComponent(100f, 100f));
+        world.Entities.SetComponent(mob, new AiBrainComponent(
+            State: AiState.Idle,
+            HomePosition: Vector2.Zero,
+            AggroRadius: 80f,
+            AttackRange: 18f,
+            LeashRadius: 300f,
+            MoveSpeed: 100f,
+            TargetLayerMask: 2,
+            AttackCooldownTicks: 5));
+
+        _ = world.Update(0.05);
+
+        world.Entities.GetComponent<AiBrainComponent>(mob).TargetEntity.Should().Be(nearest);
     }
 
     [Fact]

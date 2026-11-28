@@ -1,6 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Numerics;
@@ -271,13 +272,41 @@ public sealed class WorldSimulation
 
         Span<int> candidates = stackalloc int[MaxSpatialScratch];
         _spatialGrid.QueryRegion(in expandedMin, in expandedMax, candidates, out int candidateCount);
+        if (candidateCount < candidates.Length)
+        {
+            return this.NearestRayHit(in boundedRay, maxDist, candidates[..candidateCount], out hitEntity, out hit, layerMask, ignoreEntity, includeTriggers);
+        }
 
+        // HP-11: the scratch filled, so the query was clipped and the hit could be one never tested. Query again into a
+        // pooled buffer that holds every entity of the grid.
+        int[] rented = ArrayPool<int>.Shared.Rent(_spatialGrid.EntityCount);
+        try
+        {
+            _spatialGrid.QueryRegion(in expandedMin, in expandedMax, rented, out candidateCount);
+            return this.NearestRayHit(in boundedRay, maxDist, rented.AsSpan(0, candidateCount), out hitEntity, out hit, layerMask, ignoreEntity, includeTriggers);
+        }
+        finally
+        {
+            ArrayPool<int>.Shared.Return(rented);
+        }
+    }
+
+    private bool NearestRayHit(
+        in Ray2D boundedRay,
+        float maxDist,
+        ReadOnlySpan<int> candidates,
+        out Entity hitEntity,
+        out RaycastHit2D hit,
+        uint layerMask,
+        Entity ignoreEntity,
+        bool includeTriggers)
+    {
         bool found = false;
         float bestDist = maxDist;
         hitEntity = Entity.Null;
         hit = RaycastHit2D.None;
 
-        for (int i = 0; i < candidateCount; i++)
+        for (int i = 0; i < candidates.Length; i++)
         {
             Entity candidate = _entities.GetEntity(candidates[i]);
             if (!candidate.IsValid || candidate == ignoreEntity)
@@ -352,7 +381,10 @@ public sealed class WorldSimulation
     /// </summary>
     /// <param name="center">Circle center in world coordinates.</param>
     /// <param name="radius">Search circle radius in world units.</param>
-    /// <param name="results">Caller-supplied span receiving overlapping entity handles.</param>
+    /// <param name="results">
+    /// Caller-supplied span receiving overlapping entity handles. When more entities overlap than it holds, it keeps
+    /// those nearest to <paramref name="center"/> (by entity position), in no particular order.
+    /// </param>
     /// <param name="count">Total number of overlapping entities written.</param>
     /// <param name="layerMask">Collider layer bitmask filter.</param>
     /// <param name="includeTriggers">Whether trigger colliders are included.</param>
@@ -372,11 +404,42 @@ public sealed class WorldSimulation
             return;
         }
 
+        float queryRadius = radius + _spatialGrid.CellSize;
         Span<int> candidates = stackalloc int[MaxSpatialScratch];
-        _spatialGrid.QueryRadius(center, radius + _spatialGrid.CellSize, candidates, out int candidateCount);
-        Circle2D queryCircle = new(center, radius);
+        _spatialGrid.QueryRadius(center, queryRadius, candidates, out int candidateCount);
+        if (candidateCount < candidates.Length)
+        {
+            count = this.CollectNearestOverlaps(center, radius, candidates[..candidateCount], results, layerMask, includeTriggers);
+            return;
+        }
 
-        for (int i = 0; i < candidateCount && count < results.Length; i++)
+        // HP-11: the scratch filled, so the query was clipped and an overlap could be one never tested. Query again into
+        // a pooled buffer that holds every entity of the grid.
+        int[] rented = ArrayPool<int>.Shared.Rent(_spatialGrid.EntityCount);
+        try
+        {
+            _spatialGrid.QueryRadius(center, queryRadius, rented, out candidateCount);
+            count = this.CollectNearestOverlaps(center, radius, rented.AsSpan(0, candidateCount), results, layerMask, includeTriggers);
+        }
+        finally
+        {
+            ArrayPool<int>.Shared.Return(rented);
+        }
+    }
+
+    // Writes the overlapping candidates, in grid order while they fit. Once results is full, a nearer overlap (by distance
+    // from the centre to the entity's position) replaces the farthest kept, so the nearest always stay in (HP-11).
+    private int CollectNearestOverlaps(
+        Vector2 center,
+        float radius,
+        ReadOnlySpan<int> candidates,
+        Span<Entity> results,
+        uint layerMask,
+        bool includeTriggers)
+    {
+        int count = 0;
+        Circle2D queryCircle = new(center, radius);
+        for (int i = 0; i < candidates.Length; i++)
         {
             Entity candidate = _entities.GetEntity(candidates[i]);
             if (!candidate.IsValid || !_entities.HasTransform(candidate) || !_entities.HasCollider(candidate))
@@ -395,11 +458,36 @@ public sealed class WorldSimulation
                 ? CollisionDetector.TestCircleCircle(in queryCircle, new Circle2D(pos, col.Radius), out CollisionContact c) && c.HasCollision
                 : CollisionDetector.TestCircleAabb(in queryCircle, col.Box.Offset(pos), out c) && c.HasCollision;
 
-            if (overlaps)
+            if (!overlaps)
+            {
+                continue;
+            }
+
+            if (count < results.Length)
             {
                 results[count++] = candidate;
+                continue;
+            }
+
+            int farthest = 0;
+            float farthestSq = Vector2.DistanceSquared(center, _entities.GetTransform(results[0]).Position);
+            for (int k = 1; k < results.Length; k++)
+            {
+                float dSq = Vector2.DistanceSquared(center, _entities.GetTransform(results[k]).Position);
+                if (dSq > farthestSq)
+                {
+                    farthest = k;
+                    farthestSq = dSq;
+                }
+            }
+
+            if (Vector2.DistanceSquared(center, pos) < farthestSq)
+            {
+                results[farthest] = candidate;
             }
         }
+
+        return count;
     }
 
     /// <summary>
