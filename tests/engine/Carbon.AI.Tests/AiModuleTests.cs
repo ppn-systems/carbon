@@ -82,7 +82,7 @@ public sealed class AiModuleTests
     }
 
     [Fact]
-    public void AiBehaviorSystem_CrowdBeyondTheAggroScratch_TargetsAFartherPlayer()
+    public void AiBehaviorSystem_CrowdBeyondTheAggroScratch_TargetsTheNearestPlayer()
     {
         // HP-11: 160 players ring the mob inside its aggro radius, more than its 64 aggro candidates; the nearest is the
         // last spawned, so a scratch filled in grid order would leave it out.
@@ -116,8 +116,7 @@ public sealed class AiModuleTests
 
         _ = world.Update(0.05);
 
-        // Characterisation: the 64 aggro candidates fill in grid order, so the mob chases a farther player.
-        world.Entities.GetComponent<AiBrainComponent>(mob).TargetEntity.Should().NotBe(nearest);
+        world.Entities.GetComponent<AiBrainComponent>(mob).TargetEntity.Should().Be(nearest);
     }
 
     [Fact]
