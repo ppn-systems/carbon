@@ -13,7 +13,7 @@ using NpgsqlTypes;
 namespace Carbon.Infrastructure.Persistence.Postgres;
 
 /// <summary>PostgreSQL store of remember-me token hashes (<c>remember_tokens</c>, ADR-037).</summary>
-public sealed class PgRememberTokenStore : IRememberTokenStore
+public sealed class PostgresRememberTokenStore : IRememberTokenStore
 {
     private const string InsertSql = """
         INSERT INTO remember_tokens (token_hash, account_id, created_at_utc, expires_at_utc)
@@ -35,9 +35,9 @@ public sealed class PgRememberTokenStore : IRememberTokenStore
 
     private readonly NpgsqlDataSource _dataSource;
 
-    /// <summary>Initializes a new instance of the <see cref="PgRememberTokenStore"/> class.</summary>
+    /// <summary>Initializes a new instance of the <see cref="PostgresRememberTokenStore"/> class.</summary>
     /// <param name="dataSource">PostgreSQL data source.</param>
-    public PgRememberTokenStore(NpgsqlDataSource dataSource) =>
+    public PostgresRememberTokenStore(NpgsqlDataSource dataSource) =>
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     /// <inheritdoc/>

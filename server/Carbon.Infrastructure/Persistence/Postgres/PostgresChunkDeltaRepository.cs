@@ -15,7 +15,7 @@ namespace Carbon.Infrastructure.Persistence.Postgres;
 /// <summary>
 /// Pure <c>Npgsql</c> repository persisting serialized <c>ChunkDelta</c> blobs in atomic batches.
 /// </summary>
-public sealed class PgChunkDeltaRepository : IChunkDeltaRepository
+public sealed class PostgresChunkDeltaRepository : IChunkDeltaRepository
 {
     private const string LoadAllSql = """
         SELECT chunk_x, chunk_y, revision, generator_version, payload, updated_at_utc
@@ -35,10 +35,10 @@ public sealed class PgChunkDeltaRepository : IChunkDeltaRepository
     private readonly NpgsqlDataSource _dataSource;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="PgChunkDeltaRepository"/> class.
+    /// Initializes a new instance of the <see cref="PostgresChunkDeltaRepository"/> class.
     /// </summary>
     /// <param name="dataSource">PostgreSQL data source.</param>
-    public PgChunkDeltaRepository(NpgsqlDataSource dataSource) =>
+    public PostgresChunkDeltaRepository(NpgsqlDataSource dataSource) =>
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     /// <inheritdoc/>

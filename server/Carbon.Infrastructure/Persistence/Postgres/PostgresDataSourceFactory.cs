@@ -9,7 +9,7 @@ namespace Carbon.Infrastructure.Persistence.Postgres;
 /// Builds slim, Native-AOT-friendly PostgreSQL connection pools via <see cref="NpgsqlSlimDataSourceBuilder"/>
 /// with explicit minimal codecs and zero reflection ORM overhead.
 /// </summary>
-public static class PgDataSourceFactory
+public static class PostgresDataSourceFactory
 {
     /// <summary>
     /// Creates a configured <see cref="NpgsqlDataSource"/> from a PostgreSQL connection string.

@@ -11,7 +11,7 @@ using NpgsqlTypes;
 namespace Carbon.Infrastructure.Persistence.Postgres;
 
 /// <summary>PostgreSQL store of the world's gameplay secret (<c>gameplay_secret</c>, ADR-026).</summary>
-public sealed class PgGameplaySecretStore : IGameplaySecretStore
+public sealed class PostgresGameplaySecretStore : IGameplaySecretStore
 {
     private const string InsertIfAbsentSql = """
         INSERT INTO gameplay_secret (id, secret, created_at_utc)
@@ -23,9 +23,9 @@ public sealed class PgGameplaySecretStore : IGameplaySecretStore
 
     private readonly NpgsqlDataSource _dataSource;
 
-    /// <summary>Initializes a new instance of the <see cref="PgGameplaySecretStore"/> class.</summary>
+    /// <summary>Initializes a new instance of the <see cref="PostgresGameplaySecretStore"/> class.</summary>
     /// <param name="dataSource">Npgsql data source.</param>
-    public PgGameplaySecretStore(NpgsqlDataSource dataSource) =>
+    public PostgresGameplaySecretStore(NpgsqlDataSource dataSource) =>
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     /// <inheritdoc/>

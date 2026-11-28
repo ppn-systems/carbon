@@ -13,7 +13,7 @@ Severity: **High** = items can be lost, duplicated or used by mistake; **Medium*
 
 The core is sound. Every mutation runs on the tick under the world lock (ADR-017). Moves, merges and swaps conserve
 quantity. Crafting and vendor trades are all-or-nothing (`InventoryDraft`). The character save batch is one
-transaction (`SqliteCharacterStore.SaveBatchAsync`, `PgCharacterStore.SaveBatchAsync`), so a drop followed by another
+transaction (`SqliteCharacterStore.SaveBatchAsync`, `PostgresCharacterStore.SaveBatchAsync`), so a drop followed by another
 player's pickup cannot be saved half-way. **No duplication path was found.**
 
 The weak spots are at the edges: commands name a *slot*, not an *item*, so a stale or replayed command acts on

@@ -13,7 +13,7 @@ ADR-012 added a reusable, additive `AddCharacterColumnsAsync` migration step and
 ## Decision
 
 1. **D1 — Record.** Append the trailing optional members `float NeedsFood = -1`, `float NeedsMalnutrition = 0` and `float NeedsPoisonSeconds = 0` to `CharacterRecord`, so existing call sites keep compiling. A negative `NeedsFood` is a sentinel that means "never saved".
-2. **D2 — Schema.** Migration `0006_character_needs` uses the ADR-012 helper in both migrators. It adds the columns `needs_food REAL NOT NULL DEFAULT -1`, `needs_malnutrition REAL NOT NULL DEFAULT 0` and `needs_poison_seconds REAL NOT NULL DEFAULT 0`. `SqliteCharacterStore` and `PgCharacterStore` read and write them.
+2. **D2 — Schema.** Migration `0006_character_needs` uses the ADR-012 helper in both migrators. It adds the columns `needs_food REAL NOT NULL DEFAULT -1`, `needs_malnutrition REAL NOT NULL DEFAULT 0` and `needs_poison_seconds REAL NOT NULL DEFAULT 0`. `SqliteCharacterStore` and `PostgresCharacterStore` read and write them.
 3. **D3 — Restore.**
    - On world entry, `AuthoritativeWorld.RestoreNeedsLocked` rebuilds the component. A negative `NeedsFood` (existing rows and new characters) gives a fully fed character.
    - Otherwise:

@@ -13,7 +13,7 @@ using NpgsqlTypes;
 namespace Carbon.Infrastructure.Persistence.Postgres;
 
 /// <summary>PostgreSQL store of trader sales per restock epoch (<c>trader_stock</c>, ADR-025).</summary>
-public sealed class PgTraderStockRepository : ITraderStockRepository
+public sealed class PostgresTraderStockRepository : ITraderStockRepository
 {
     private const string LoadAllSql = "SELECT trader_key, epoch, sold FROM trader_stock;";
 
@@ -26,9 +26,9 @@ public sealed class PgTraderStockRepository : ITraderStockRepository
 
     private readonly NpgsqlDataSource _dataSource;
 
-    /// <summary>Initializes a new instance of the <see cref="PgTraderStockRepository"/> class.</summary>
+    /// <summary>Initializes a new instance of the <see cref="PostgresTraderStockRepository"/> class.</summary>
     /// <param name="dataSource">Npgsql data source.</param>
-    public PgTraderStockRepository(NpgsqlDataSource dataSource) =>
+    public PostgresTraderStockRepository(NpgsqlDataSource dataSource) =>
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
 
     /// <inheritdoc/>
