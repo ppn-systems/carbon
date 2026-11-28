@@ -31,6 +31,23 @@ public sealed class WorldTickHostedRunnerTests
         world.Calls.Should().ContainSingle(c => c == "StopBackgroundBuilds");
     }
 
+    [Fact]
+    public async Task RunAsync_WhenATickThrows_FaultsButNeverTellsTheHost()
+    {
+        // Audit TS-5 characterisation: the exception ends the loop and the shutdown work still runs, but nothing stops
+        // the host. Program awaits the tick task only after the network app returns, so the host keeps accepting players
+        // into a world that no longer ticks.
+        RecordingLoop world = new() { ThrowOnTick = 3 };
+        WorldTickHostedRunner runner = new(world, NullLogger<WorldTickHostedRunner>.Instance);
+        using CancellationTokenSource host = new();
+
+        Func<Task> run = () => runner.RunAsync(host.Token);
+
+        await run.Should().ThrowAsync<InvalidOperationException>().WithMessage("tick 3 failed");
+        world.Calls.Should().EndWith(["FailPendingCommands", "FlushDirtyPersistence", "StopBackgroundBuilds"]);
+        host.IsCancellationRequested.Should().BeFalse("nothing tells the host that the world stopped");
+    }
+
     private sealed class RecordingLoop : IWorldSimulationLoop
     {
         private readonly Lock _gate = new();
@@ -52,11 +69,21 @@ public sealed class WorldTickHostedRunnerTests
             }
         }
 
+        /// <summary>Gets the tick whose step throws; 0 never throws.</summary>
+        public int ThrowOnTick { get; init; }
+
         public bool WaitForTicks(int count) => SpinWait.SpinUntil(() => Volatile.Read(ref _ticks) >= count, TimeSpan.FromSeconds(30));
 
         public Task InitializeFromStoreAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-        public void StepFixedTick() => Interlocked.Increment(ref _ticks);
+        public void StepFixedTick()
+        {
+            int tick = Interlocked.Increment(ref _ticks);
+            if (tick == this.ThrowOnTick)
+            {
+                throw new InvalidOperationException($"tick {tick} failed");
+            }
+        }
 
         public Task FlushDirtyPersistenceAsync(CancellationToken ct = default)
         {
