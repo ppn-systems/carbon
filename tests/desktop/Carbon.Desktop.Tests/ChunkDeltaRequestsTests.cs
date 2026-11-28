@@ -18,27 +18,56 @@ public sealed class ChunkDeltaRequestsTests
         Span<long> keys = stackalloc long[ChunkDeltaRequests.MaxPerCollect];
 
         requests.Collect(10, 20, keys).Should().Be(25);
-        requests.Collect(10, 20, keys).Should().Be(0, "nothing is asked twice while it is outstanding or answered");
+        requests.Collect(10, 20, keys).Should().Be(0, "nothing more while the player stays in the chunk");
+        requests.Collect(11, 20, keys).Should().Be(5, "a step east asks only for the new column");
     }
 
     [Fact]
-    public void Completed_NoDelta_IsNeverAskedAgain()
+    public void Collect_InTheSameChunk_AsksNothingEvenAfterAnEmptyAnswer()
     {
-        // Characterisation: a request that ends with no delta stays marked, so a chunk the server refused (the client's
-        // predicted position too far ahead, after a stall) never loads its buildings or edits this session.
+        // Requests go out on a chunk change, so a forgotten empty chunk is not asked again every frame.
+        ChunkDeltaRequests requests = new();
+        Span<long> keys = stackalloc long[ChunkDeltaRequests.MaxPerCollect];
+        _ = requests.Collect(0, 0, keys);
+        requests.Completed(Chunk2D.PackKey(2, 0), ChunkRequestResult.NoDelta);
+
+        requests.Collect(0, 0, keys).Should().Be(0);
+    }
+
+    [Fact]
+    public void Completed_NoDelta_IsAskedAgainAtTheNextChunkChange()
+    {
+        // A chunk the server refused (the client's predicted position two chunks ahead, after a stall) answers with no
+        // delta; it is asked again, so its buildings and edits still load once the player is really there.
         ChunkDeltaRequests requests = new();
         Span<long> keys = stackalloc long[ChunkDeltaRequests.MaxPerCollect];
         _ = requests.Collect(0, 0, keys);
         long refused = Chunk2D.PackKey(2, 0);
         requests.Completed(refused, ChunkRequestResult.NoDelta);
 
-        _ = requests.Collect(5, 0, keys); // the player moves on, then comes back
+        int count = requests.Collect(1, 0, keys);
 
-        requests.Collect(0, 0, keys).Should().Be(0, "the chunk that brought no delta is never asked again");
+        Contains(keys, count, refused).Should().BeTrue();
     }
 
     [Fact]
-    public void Completed_Failed_IsAskedAgain()
+    public void Completed_Delta_IsNeverAskedAgain()
+    {
+        // Its later changes arrive live; the delta is asked for once.
+        ChunkDeltaRequests requests = new();
+        Span<long> keys = stackalloc long[ChunkDeltaRequests.MaxPerCollect];
+        _ = requests.Collect(0, 0, keys);
+        long loaded = Chunk2D.PackKey(2, 0);
+        requests.Completed(loaded, ChunkRequestResult.Delta);
+
+        _ = requests.Collect(5, 0, keys);
+        int count = requests.Collect(0, 0, keys);
+
+        Contains(keys, count, loaded).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Completed_Failed_IsAskedAgainAtTheNextChunkChange()
     {
         ChunkDeltaRequests requests = new();
         Span<long> keys = stackalloc long[ChunkDeltaRequests.MaxPerCollect];
@@ -46,7 +75,8 @@ public sealed class ChunkDeltaRequestsTests
         long failed = Chunk2D.PackKey(1, 1);
         requests.Completed(failed, ChunkRequestResult.Failed);
 
-        int count = requests.Collect(0, 0, keys);
+        requests.Collect(0, 0, keys).Should().Be(0, "not in the same chunk");
+        int count = requests.Collect(0, 1, keys);
         Contains(keys, count, failed).Should().BeTrue();
     }
 

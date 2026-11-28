@@ -702,13 +702,14 @@ public sealed partial class MultiplayerSession
 
     private async Task SyncChunkDeltaAsync(int cx, int cy)
     {
+        long key = Chunk2D.PackKey(cx, cy);
         TcpSession? tcp = _tcpSession;
         if (tcp is null || !tcp.IsConnected)
         {
+            _chunkRequests.Completed(key, ChunkRequestResult.Failed);
             return;
         }
 
-        long key = Chunk2D.PackKey(cx, cy);
         bool receivedDelta = false;
         try
         {
