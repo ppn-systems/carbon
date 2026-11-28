@@ -12,14 +12,31 @@ namespace Carbon.Host.Tests;
 /// <summary>How the host reads its database settings from the environment (audit SEC-4).</summary>
 public sealed class HostRuntimeOptionsTests
 {
-    [Fact]
-    public void FromEnvironment_PostgresWithoutAConnectionString_FallsBackToBuiltInCredentials()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void FromEnvironment_PostgresWithoutAConnectionString_FailsFastNamingTheVariable(string? connection)
     {
-        // Characterisation: a missing CARBON_DB_CONNECTION in Postgres mode silently uses credentials in the source.
-        HostRuntimeOptions options = HostRuntimeOptions.FromEnvironment(Env(("CARBON_DB_PROVIDER", "postgres")));
+        // There are no built-in Postgres credentials: the boot fails with a message that says what to set.
+        Func<string, string?> env = connection is null
+            ? Env(("CARBON_DB_PROVIDER", "postgres"))
+            : Env(("CARBON_DB_PROVIDER", "postgres"), ("CARBON_DB_CONNECTION", connection));
+
+        Action read = () => HostRuntimeOptions.FromEnvironment(env);
+
+        read.Should().Throw<InvalidOperationException>().WithMessage("*CARBON_DB_CONNECTION*no default*")
+            .Which.Message.Should().NotContain("Password");
+    }
+
+    [Fact]
+    public void FromEnvironment_PostgresWithAConnectionString_UsesIt()
+    {
+        const string connection = "Host=db;Port=5432;Database=carbon;Username=svc;Password=from-the-secret-store";
+        HostRuntimeOptions options = HostRuntimeOptions.FromEnvironment(Env(("CARBON_DB_PROVIDER", "postgres"), ("CARBON_DB_CONNECTION", connection)));
 
         options.Provider.Should().Be(DatabaseProvider.Postgres);
-        options.ConnectionString.Should().Be("Host=localhost;Port=5432;Database=carbon;Username=carbon;Password=carbon");
+        options.ConnectionString.Should().Be(connection);
     }
 
     [Fact]

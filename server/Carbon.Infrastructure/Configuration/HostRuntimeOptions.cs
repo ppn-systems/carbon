@@ -93,11 +93,13 @@ public sealed class HostRuntimeOptions
     /// <summary>
     /// Loads options from environment variables with safe local SQLite defaults.
     /// </summary>
+    /// <exception cref="InvalidOperationException">Postgres is selected without a connection string, or a variable is malformed.</exception>
     public static HostRuntimeOptions FromEnvironment() => FromEnvironment(Environment.GetEnvironmentVariable);
 
     /// <summary>Loads options from <paramref name="readEnv"/> (environment variable reader) with safe local SQLite defaults.</summary>
     /// <param name="readEnv">Environment variable reader.</param>
     /// <returns>The options.</returns>
+    /// <exception cref="InvalidOperationException">Postgres is selected without a connection string, or a variable is malformed.</exception>
     public static HostRuntimeOptions FromEnvironment(Func<string, string?> readEnv)
     {
         ArgumentNullException.ThrowIfNull(readEnv);
@@ -106,13 +108,14 @@ public sealed class HostRuntimeOptions
             ? DatabaseProvider.Postgres
             : DatabaseProvider.Sqlite;
 
-        string defaultConn = provider == DatabaseProvider.Postgres
-            ? "Host=localhost;Port=5432;Database=carbon;Username=carbon;Password=carbon"
-            : "Data Source=carbon_world.db";
-
-        string connectionString = readEnv("CARBON_DB_CONNECTION") is { Length: > 0 } conn
+        // Audit SEC-4: Postgres has no default. A missing connection string fails the boot instead of using credentials
+        // written in the source; the message names the variables and never echoes a value.
+        string connectionString = readEnv("CARBON_DB_CONNECTION") is { Length: > 0 } conn && !string.IsNullOrWhiteSpace(conn)
             ? conn
-            : defaultConn;
+            : provider == DatabaseProvider.Postgres
+                ? throw new InvalidOperationException(
+                    "CARBON_DB_PROVIDER=postgres needs CARBON_DB_CONNECTION (an Npgsql connection string); there is no default. Leave CARBON_DB_PROVIDER unset for the local SQLite file.")
+                : "Data Source=carbon_world.db";
 
         ulong seed = ulong.TryParse(readEnv("CARBON_WORLD_SEED"), NumberStyles.Integer, CultureInfo.InvariantCulture, out ulong s)
             ? s
