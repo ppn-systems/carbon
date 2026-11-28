@@ -93,6 +93,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// </summary>
     public (int X, int Y) SpawnTile => _spawn.Value;
 
+    /// <summary>ADR-045 D1 <c>K</c>: chunks beyond the load radius whose road sites are planned ahead (one step's travel).</summary>
+    internal const int RoadPrewarmMarginChunks = 1;
+
     /// <summary>
     /// Gets a zero-allocation read-only span of currently resident active chunks.
     /// </summary>
@@ -646,13 +649,18 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public bool TryGetChunk(int chunkX, int chunkY, out Chunk2D? chunk) =>
         _streamer.TryGet(chunkX, chunkY, out chunk);
 
-    /// <summary>Releases what <paramref name="stream"/> kept cached (a player left the world).</summary>
+    /// <summary>Releases what <paramref name="stream"/> kept cached or resident (a player left the world).</summary>
     /// <param name="stream">The stream passed to <see cref="UpdateAroundPosition"/>.</param>
-    public void ReleaseStream(ulong stream) => _generator.ReleaseStream(stream);
+    public void ReleaseStream(ulong stream)
+    {
+        _streamer.Release(stream);
+        _generator.ReleaseStream(stream);
+    }
 
     /// <summary>
     /// Streams and loads all chunks within <paramref name="chunkRadius"/> around the target world position,
-    /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool.
+    /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool, unless another
+    /// <paramref name="stream"/> (player) still keeps them within its own eviction radius.
     /// </summary>
     /// <param name="centerWorldPos">Target center world coordinates (e.g. camera or player).</param>
     /// <param name="chunkRadius">Active load radius in chunks (e.g. 4 chunks = 9x9 active grid).</param>
@@ -671,17 +679,33 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
             (chunkRadius + 8) * Chunk2D.Size,
             stream);
 
-        // 0b. ADR-045 D1: plan the road sites of the loaded chunks in the background. A road query reads two sites (about
-        // 14 chunks) beyond its rectangle, so this also covers every chunk the player can walk into before the next step.
-        _generator.PrewarmRoads(
-            (centerChunkX - chunkRadius) * Chunk2D.Size,
-            (centerChunkY - chunkRadius) * Chunk2D.Size,
-            ((centerChunkX + chunkRadius + 1) * Chunk2D.Size) - 1,
-            ((centerChunkY + chunkRadius + 1) * Chunk2D.Size) - 1,
-            stream);
+        // 0b. ADR-045 D1: plan, in the background, the road sites of the loaded chunks and of a one-chunk margin, so the
+        // chunks the next step loads (a player moves at most one chunk per step) find their sites queued a step ahead.
+        (int roadMinX, int roadMinY, int roadMaxX, int roadMaxY) = RoadPrewarmTiles(centerChunkX, centerChunkY, chunkRadius);
+        _generator.PrewarmRoads(roadMinX, roadMinY, roadMaxX, roadMaxY, stream);
 
         // 1. Load the chunks in range; recycle those far away (their edits stay in the delta store).
-        _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius);
+        // A chunk another stream (player) still keeps is not evicted by this one.
+        _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius, stream);
+    }
+
+    /// <summary>
+    /// The tile rectangle whose road sites <see cref="UpdateAroundPosition"/> plans ahead (ADR-045 D1): the load radius
+    /// plus <see cref="RoadPrewarmMarginChunks"/>. Without the margin, a step that crosses a road site boundary loads edge
+    /// chunks whose query reads a site row the previous step never queued.
+    /// </summary>
+    /// <param name="centerChunkX">Centre chunk X.</param>
+    /// <param name="centerChunkY">Centre chunk Y.</param>
+    /// <param name="chunkRadius">Load radius in chunks.</param>
+    /// <returns>The inclusive tile rectangle.</returns>
+    internal static (int MinX, int MinY, int MaxX, int MaxY) RoadPrewarmTiles(int centerChunkX, int centerChunkY, int chunkRadius)
+    {
+        int reach = chunkRadius + RoadPrewarmMarginChunks;
+        return (
+            (centerChunkX - reach) * Chunk2D.Size,
+            (centerChunkY - reach) * Chunk2D.Size,
+            ((centerChunkX + reach + 1) * Chunk2D.Size) - 1,
+            ((centerChunkY + reach + 1) * Chunk2D.Size) - 1);
     }
 
     /// <summary>

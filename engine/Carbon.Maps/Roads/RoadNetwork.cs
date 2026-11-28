@@ -346,8 +346,8 @@ public sealed class RoadNetwork
         return MathF.Sqrt(best);
     }
 
-    // The sites a query of the tile rectangle reads.
-    private static (int X0, int Y0, int X1, int Y1) QueriedSites(int minX, int minY, int maxX, int maxY) => (
+    // The sites a query of the tile rectangle reads (tests: the prewarm must cover them a step ahead).
+    internal static (int X0, int Y0, int X1, int Y1) QueriedSites(int minX, int minY, int maxX, int maxY) => (
         FloorDiv(minX, PointOfInterestResolver.SiteSize) - Reach - 1,
         FloorDiv(minY, PointOfInterestResolver.SiteSize) - Reach - 1,
         FloorDiv(maxX, PointOfInterestResolver.SiteSize) + Reach + 1,
