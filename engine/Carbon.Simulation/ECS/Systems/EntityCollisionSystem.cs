@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Numerics;
 using Carbon.Physics.Contacts;
 using Carbon.Physics.Narrowphase;
+using Carbon.Physics.Obstacles;
 using Carbon.Physics.Separation;
 using Carbon.Physics.Shapes;
 using Carbon.Simulation.ECS.Components;
@@ -38,11 +39,16 @@ public static class EntityCollisionSystem
     /// <param name="spatialGrid">The spatial partitioning grid.</param>
     /// <param name="triggerEvents">Optional event buffer receiving trigger overlap notifications.</param>
     /// <param name="markDirty">Optional callback invoked when entity transforms change due to separation.</param>
+    /// <param name="worldPhysics">
+    /// World geometry the separated bodies are resolved against again (DET-3): movement has already kept them out of walls,
+    /// and separation must not push them back in. <see langword="null"/> separates without world geometry.
+    /// </param>
     public static void Update(
         EntityManager entities,
         SpatialHashGrid2D spatialGrid,
         SimulationEventBuffer<TriggerOverlapEvent>? triggerEvents,
-        Action<Entity, EntityDirtyMask>? markDirty = null)
+        Action<Entity, EntityDirtyMask>? markDirty = null,
+        IWorldPhysics2D? worldPhysics = null)
     {
         ArgumentNullException.ThrowIfNull(entities);
         ArgumentNullException.ThrowIfNull(spatialGrid);
@@ -146,6 +152,12 @@ public static class EntityCollisionSystem
 
                     if (ResolveSolidOverlap(ref posA, in colA, ref posB, in colB))
                     {
+                        if (worldPhysics is not null)
+                        {
+                            ResolveAgainstWorld(worldPhysics, ref posA, in colA);
+                            ResolveAgainstWorld(worldPhysics, ref posB, in colB);
+                        }
+
                         transA.Position = posA;
                         transB.Position = posB;
 
@@ -166,6 +178,20 @@ public static class EntityCollisionSystem
             {
                 ArrayPool<int>.Shared.Return(rentedBuffer);
             }
+        }
+    }
+
+    // The same world resolution MovementSystem applies to a moved body (circle by its terrain mask, box by its extent).
+    private static void ResolveAgainstWorld(IWorldPhysics2D worldPhysics, ref Vector2 position, in Collider2D collider)
+    {
+        if (collider.Kind == ColliderKind.Circle)
+        {
+            _ = worldPhysics.ResolveCircleCollision(ref position, collider.Radius, collider.Mask, out _);
+        }
+        else
+        {
+            AABB2D box = collider.Box;
+            _ = worldPhysics.ResolveAabbCollision(ref position, in box, out _);
         }
     }
 

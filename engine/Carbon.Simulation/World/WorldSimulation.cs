@@ -209,7 +209,7 @@ public sealed class WorldSimulation
 
         // 5. Collision & Spatial System: broadphase query, solid separation, and trigger overlap events
         SimulationEventBuffer<TriggerOverlapEvent> triggerBuffer = this.GetEventBuffer<TriggerOverlapEvent>();
-        EntityCollisionSystem.Update(_entities, _spatialGrid, triggerBuffer, _markDirtyCallback);
+        EntityCollisionSystem.Update(_entities, _spatialGrid, triggerBuffer, _markDirtyCallback, physics);
 
         // 6. Custom Physics & PostUpdate systems
         this.RunSystems(SimulationPhase.Physics, args);
