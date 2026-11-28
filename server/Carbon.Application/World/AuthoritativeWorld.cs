@@ -492,6 +492,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <summary>Gets the simulation, for tests that drive entities directly (kill and respawn guards).</summary>
     internal WorldSimulation Simulation => _simulation;
 
+    /// <summary>Gets the streamed chunk world (tests read chunk deltas through it).</summary>
+    internal ChunkWorld2D Chunks => _chunkWorld;
+
     /// <inheritdoc/>
     public float TileSize { get; }
 
