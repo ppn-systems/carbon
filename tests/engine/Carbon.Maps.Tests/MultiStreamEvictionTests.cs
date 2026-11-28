@@ -61,6 +61,25 @@ public sealed class MultiStreamEvictionTests
     }
 
     [Fact]
+    public void ChunkEvicted_ChunkAnotherPlayerKeeps_FiresOnlyOnceThatPlayerLeaves()
+    {
+        // ALLOC-7's per-chunk caches end on this event, so it must follow the union keep, not one player's radius.
+        ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL), TileSize);
+        long kept = Chunk2D.PackKey(Apart, 0);
+        int evictions = 0;
+        world.ChunkEvicted += key => evictions += key == kept ? 1 : 0;
+        Step(world, 1UL, 0, 0);
+        Step(world, 2UL, Apart, 0);
+
+        Step(world, 1UL, 0, 0);
+        evictions.Should().Be(0, "player 2 still keeps it");
+
+        world.ReleaseStream(2UL);
+        Step(world, 1UL, 0, 0);
+        evictions.Should().Be(1);
+    }
+
+    [Fact]
     public void UpdateAroundPosition_AnonymousStream_IsNotRemembered()
     {
         // Stream 0 (the client, the server's startup call at the spawn) keeps nothing once a later step moves on, so the

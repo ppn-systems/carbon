@@ -115,6 +115,16 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public int PooledChunkCount => _streamer.PooledCount;
 
     /// <summary>
+    /// Raised with a chunk's packed key (<see cref="Chunk2D.PackKey"/>) when <see cref="UpdateAroundPosition"/> evicts it,
+    /// on the streaming thread and under the chunk lock, so per-chunk caches can end with the chunk (ALLOC-7).
+    /// </summary>
+    public event Action<long>? ChunkEvicted
+    {
+        add => _streamer.Evicted += value;
+        remove => _streamer.Evicted -= value;
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ChunkWorld2D"/> class.
     /// Automatically locates a natural safe starter location within a grand LushPlains biome.
     /// </summary>
@@ -231,9 +241,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0)
             {
@@ -279,9 +290,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0)
             {
@@ -340,9 +352,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0)
             {
@@ -505,9 +518,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int cy = Chunk2D.ToChunkCoord(worldTileY);
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0 || !MapProp.IsTree(chunk.Props[index].Type))
             {
@@ -542,9 +556,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int cy = Chunk2D.ToChunkCoord(worldTileY);
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             planted = default;
             MapTile tile = chunk.GetTile(lx, ly);
             // Water biomes grow no trees, so the biome check also refuses water.
@@ -722,9 +737,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             chunk.SetTile(lx, ly, tile);
             _deltas.GetOrAdd(cx, cy).SetTile(lx, ly, tile);
         }

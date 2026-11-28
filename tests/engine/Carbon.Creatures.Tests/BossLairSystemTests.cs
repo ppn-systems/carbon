@@ -125,6 +125,48 @@ public sealed class BossLairSystemTests
     }
 
     [Fact]
+    public void Update_PlayerTravelsFarAcrossCells_KeepsOnlyTheCellsItsScanReaches()
+    {
+        LairArena arena = new();
+        Entity player = arena.Player(new Vector2(0f, 3_000f));
+
+        arena.TravelAlongX(player, toX: 40 * 32_768f);
+
+        // ALLOC-7: a 1 280-unit scan reaches at most 2 x 2 of the 32 768-unit cells; the 40 cells passed are gone.
+        arena.System.CellCount.Should().BeLessThanOrEqualTo(4);
+    }
+
+    [Fact]
+    public void Update_PlayerStaysOutsideTheActivationRadius_LooksEachCellUpOnce()
+    {
+        LairArena arena = new();
+        arena.Player(s_lair + new Vector2(arena.Lairs.ActivationRadius + 200f, 0f));
+        arena.Step(arena.Config.ScanIntervalTicks);
+        int lookups = arena.Source.Lookups;
+
+        arena.Step(arena.Config.ScanIntervalTicks * 20);
+
+        arena.Source.Lookups.Should().Be(lookups, "a cell a scan still reaches stays cached, lair or not");
+    }
+
+    [Fact]
+    public void Update_BossKilledThenPlayerTravelsFarAndBack_TheRespawnTimerStillRuns()
+    {
+        LairArena arena = new();
+        Entity player = arena.Player(s_lair + new Vector2(600f, 0f));
+        arena.Step(arena.Config.ScanIntervalTicks);
+        arena.Kill(arena.Boss);
+        arena.Step(arena.Config.ScanIntervalTicks);
+
+        arena.TravelAlongX(player, toX: 20 * 32_768f);
+        arena.TravelAlongX(player, toX: s_lair.X + 600f);
+
+        arena.Boss.IsValid.Should().BeFalse("the lair kept its respawn timer while nobody's scan reached it");
+        arena.Step(arena.Lairs.RespawnTicks);
+        arena.Boss.IsValid.Should().BeTrue("the boss rises once the timer has run out");
+    }
+
+    [Fact]
     public void Constructor_NonBossMonster_IsRejected()
     {
         SpawningConfig config = CreatureTestData.LoadSpawning();
@@ -153,8 +195,11 @@ public sealed class BossLairSystemTests
 
         public float ChunkSize => chunkSize;
 
+        public int Lookups { get; private set; }
+
         public bool TryGetLair(int cellX, int cellY, out Vector2 anchor)
         {
+            this.Lookups++;
             anchor = s_lair;
             return cellX == 1 && cellY == 0;
         }
@@ -169,7 +214,8 @@ public sealed class BossLairSystemTests
         public LairArena(float chunkSize = 1_024f)
         {
             this.World = new WorldSimulation(tickRate: 30);
-            _system = new BossLairSystem(this.Catalog, this.Config, new MonsterScaling(this.Config), new FakeLairs(chunkSize), Vector2.Zero);
+            this.Source = new FakeLairs(chunkSize);
+            _system = new BossLairSystem(this.Catalog, this.Config, new MonsterScaling(this.Config), this.Source, Vector2.Zero);
             this.World.RegisterSystem(_system);
         }
 
@@ -182,6 +228,10 @@ public sealed class BossLairSystemTests
         public WorldSimulation World { get; }
 
         public Entity Boss => _system.GetBoss(1, 0);
+
+        public BossLairSystem System => _system;
+
+        public FakeLairs Source { get; }
 
         public Entity Player(Vector2 at)
         {
@@ -214,6 +264,22 @@ public sealed class BossLairSystemTests
             }
 
             return count;
+        }
+
+        /// <summary>Walks a player along X, half a cell per scan, so every cell on the way is scanned.</summary>
+        public void TravelAlongX(Entity player, float toX)
+        {
+            Vector2 at = this.World.Entities.GetTransform(player).Position;
+            float step = 16_384f * MathF.Sign(toX - at.X);
+            while (MathF.Abs(toX - at.X) > MathF.Abs(step))
+            {
+                at += new Vector2(step, 0f);
+                this.Move(player, at);
+                this.Step(this.Config.ScanIntervalTicks);
+            }
+
+            this.Move(player, new Vector2(toX, at.Y));
+            this.Step(this.Config.ScanIntervalTicks);
         }
 
         public void Step(uint ticks)
