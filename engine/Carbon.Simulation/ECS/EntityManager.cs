@@ -122,11 +122,13 @@ public sealed class EntityManager
     }
 
     /// <summary>
-    /// Destroys an entity and recycles its ID slot in O(1) time using swap-back removal.
+    /// Destroys an entity and recycles its ID slot in O(1) time using swap-back removal. Internal (ECS-8): an entity of a
+    /// world leaves it only through <see cref="World.WorldSimulation.DespawnEntity"/>, which also clears its spatial-grid
+    /// entry and network id and publishes the despawn.
     /// </summary>
     /// <param name="entity">The entity to destroy.</param>
     /// <returns><see langword="true"/> if destroyed; otherwise, <see langword="false"/>.</returns>
-    public bool DestroyEntity(Entity entity)
+    internal bool DestroyEntity(Entity entity)
     {
         if (!this.IsAlive(entity))
         {

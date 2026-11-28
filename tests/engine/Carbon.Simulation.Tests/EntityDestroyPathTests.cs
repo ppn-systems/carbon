@@ -1,7 +1,7 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using System.Numerics;
+using System.Reflection;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.Events;
 using Carbon.Simulation.World;
@@ -17,18 +17,26 @@ namespace Carbon.Simulation.Tests;
 public sealed class EntityDestroyPathTests
 {
     [Fact]
-    public void EntitiesDestroyEntity_OnAWorldEntity_LeavesItsGridEntryAndNetworkIdBehind()
+    public void EntityManager_DestroyEntity_IsNotPublic()
+    {
+        typeof(EntityManager).GetMethod(nameof(EntityManager.DestroyEntity), BindingFlags.Public | BindingFlags.Instance)
+            .Should().BeNull("only WorldSimulation.DespawnEntity may destroy a world entity");
+    }
+
+    [Fact]
+    public void DespawnEntity_OnANetworkedEntity_ClearsItsGridEntryAndNetworkIdAndPublishesTheDespawn()
     {
         WorldSimulation world = new();
         Entity entity = world.SpawnNetworkEntity(77UL, new Vector2(50f, 50f));
 
-        world.Entities.DestroyEntity(entity).Should().BeTrue();
+        world.DespawnEntity(entity);
 
-        // Characterisation: the public EntityManager path skips the world's bookkeeping.
-        world.SpatialGrid.EntityCount.Should().Be(1, "the destroyed entity's grid entry stays");
-        world.ReadEvents<EntityDespawnedEvent>().Length.Should().Be(0, "no despawn is published");
+        world.SpatialGrid.EntityCount.Should().Be(0);
+        world.ReadEvents<EntityDespawnedEvent>().ToArray().Should().ContainSingle().Which.Should().Be(new EntityDespawnedEvent(entity, 77UL));
+        world.TryGetEntityByNetworkId(77UL, out _).Should().BeFalse();
         Entity next = world.SpawnEntity(new Vector2(500f, 500f));
-        Action rebind = () => world.BindNetworkIdentity(next, 77UL);
-        rebind.Should().Throw<InvalidOperationException>("network id 77 is still bound to the dead entity");
+        world.BindNetworkIdentity(next, 77UL);
+        world.TryGetEntityByNetworkId(77UL, out Entity bound).Should().BeTrue();
+        bound.Should().Be(next);
     }
 }
