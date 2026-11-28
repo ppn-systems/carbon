@@ -79,6 +79,9 @@ public sealed class BossLairSystem : ISimulationSystem
     /// <returns>The living boss, or <see cref="Entity.Null"/>.</returns>
     public Entity GetBoss(int cellX, int cellY) => _cells.TryGetValue((cellX, cellY), out Lair lair) ? lair.Boss : Entity.Null;
 
+    /// <summary>Gets the number of lair cells held: those near a player, plus lairs with a living boss or a running respawn timer.</summary>
+    public int CellCount => _cells.Count;
+
     /// <inheritdoc/>
     public void Update(WorldSimulation world, FixedTickArgs tick)
     {

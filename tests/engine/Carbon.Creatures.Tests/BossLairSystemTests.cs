@@ -125,6 +125,18 @@ public sealed class BossLairSystemTests
     }
 
     [Fact]
+    public void Update_PlayerTravelsFarAcrossCells_KeepsEveryCellItPassed()
+    {
+        LairArena arena = new();
+        Entity player = arena.Player(new Vector2(0f, 3_000f));
+
+        arena.TravelAlongX(player, toX: 40 * 32_768f);
+
+        // ALLOC-7 characterisation: every cell scanned on the way stays cached, so the set grows with distance travelled.
+        arena.System.CellCount.Should().BeGreaterThanOrEqualTo(41);
+    }
+
+    [Fact]
     public void Constructor_NonBossMonster_IsRejected()
     {
         SpawningConfig config = CreatureTestData.LoadSpawning();
@@ -183,6 +195,8 @@ public sealed class BossLairSystemTests
 
         public Entity Boss => _system.GetBoss(1, 0);
 
+        public BossLairSystem System => _system;
+
         public Entity Player(Vector2 at)
         {
             Entity player = this.World.SpawnEntity(at, radius: 6f);
@@ -214,6 +228,22 @@ public sealed class BossLairSystemTests
             }
 
             return count;
+        }
+
+        /// <summary>Walks a player along X, half a cell per scan, so every cell on the way is scanned.</summary>
+        public void TravelAlongX(Entity player, float toX)
+        {
+            Vector2 at = this.World.Entities.GetTransform(player).Position;
+            float step = 16_384f * MathF.Sign(toX - at.X);
+            while (MathF.Abs(toX - at.X) > MathF.Abs(step))
+            {
+                at += new Vector2(step, 0f);
+                this.Move(player, at);
+                this.Step(this.Config.ScanIntervalTicks);
+            }
+
+            this.Move(player, new Vector2(toX, at.Y));
+            this.Step(this.Config.ScanIntervalTicks);
         }
 
         public void Step(uint ticks)

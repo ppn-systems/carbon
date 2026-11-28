@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -41,6 +42,34 @@ public sealed class SettlementNpcSpawnerTests
         h.Actors.Values.Count(a => a.ArchetypeId == WorldActorCatalog.MasterBlacksmith).Should().BeGreaterThanOrEqualTo(1);
         h.Actors.Count.Should().Be(actorsAfterFirst, "chunks are populated once");
         h.Spawner.PopulatedChunkCount.Should().Be(9);
+    }
+
+    [Fact]
+    public void PopulateAround_TravelOutAndBack_KeepsEveryChunkPassedAndSpawnsNothingTwice()
+    {
+        Harness h = new();
+        const float chunkWorld = Chunk2D.Size * 32f;
+        Vector2 spawn = h.Chunks.SpawnWorldPosition;
+        Vector2 start = new((MathF.Floor(spawn.X / chunkWorld) + 0.5f) * chunkWorld, (MathF.Floor(spawn.Y / chunkWorld) + 0.5f) * chunkWorld);
+        int actorsOut = 0;
+        for (int leg = 0; leg < 2; leg++)
+        {
+            for (int i = 0; i <= 30; i++)
+            {
+                int c = leg == 0 ? i : 30 - i;
+                Vector2 at = start + new Vector2(c * chunkWorld, 0f);
+                h.Chunks.UpdateAroundPosition(at, chunkRadius: 2, evictionRadius: 8);
+                h.Spawner.PopulateAround(at, radius: 2);
+            }
+
+            actorsOut = leg == 0 ? h.Actors.Count : actorsOut;
+        }
+
+        h.Actors.Count.Should().Be(actorsOut, "the way back passes only sites already populated");
+
+        // ALLOC-7 characterisation: every chunk passed stays in the set (35 columns of 5), long after it was evicted.
+        h.Spawner.PopulatedChunkCount.Should().Be(35 * 5);
+        h.Chunks.LoadedChunkCount.Should().BeLessThan(35 * 5);
     }
 
     [Fact]
