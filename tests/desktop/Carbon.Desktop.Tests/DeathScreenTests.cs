@@ -107,8 +107,8 @@ public sealed class DeathScreenTests : IDisposable
 
         sent.Should().Be(1);
         death.IsRespawnPending.Should().BeTrue();
-        answer.SetResult(OpStatus.Ok);
-        SpinWait.SpinUntil(() => death.Death is null, TimeSpan.FromSeconds(5)).Should().BeTrue("the server accepted the respawn, so the death screen closes");
+        CompleteHere(answer, OpStatus.Ok);
+        death.Death.Should().BeNull("the server accepted the respawn, so the death screen closes");
         death.IsRespawnPending.Should().BeFalse();
     }
 
@@ -211,6 +211,23 @@ public sealed class DeathScreenTests : IDisposable
         }
 
         return dir?.FullName ?? throw new InvalidOperationException("Carbon.slnx not found above the test output directory.");
+    }
+
+    // Completes the server's answer so the session's continuation runs here, at once. Under xUnit's AsyncTestSyncContext,
+    // SetResult does not run an awaiting continuation inline: it queues it to the thread pool, and a test that then waits
+    // a fixed time for it fails whenever a loaded run starves the pool (seen once in verify.sh).
+    private static void CompleteHere(TaskCompletionSource<OpStatus> answer, OpStatus status)
+    {
+        SynchronizationContext? context = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            answer.SetResult(status);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+        }
     }
 
     private static DeathSession Dead(Func<Task<OpStatus>> send)
