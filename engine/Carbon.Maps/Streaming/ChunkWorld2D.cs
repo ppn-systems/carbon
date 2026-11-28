@@ -663,16 +663,23 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
 
         // 0b. ADR-045 D1: plan the road sites of the loaded chunks in the background. A road query reads two sites (about
         // 14 chunks) beyond its rectangle, so this also covers every chunk the player can walk into before the next step.
-        _generator.PrewarmRoads(
-            (centerChunkX - chunkRadius) * Chunk2D.Size,
-            (centerChunkY - chunkRadius) * Chunk2D.Size,
-            ((centerChunkX + chunkRadius + 1) * Chunk2D.Size) - 1,
-            ((centerChunkY + chunkRadius + 1) * Chunk2D.Size) - 1,
-            stream);
+        (int roadMinX, int roadMinY, int roadMaxX, int roadMaxY) = RoadPrewarmTiles(centerChunkX, centerChunkY, chunkRadius);
+        _generator.PrewarmRoads(roadMinX, roadMinY, roadMaxX, roadMaxY, stream);
 
         // 1. Load the chunks in range; recycle those far away (their edits stay in the delta store).
         _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius);
     }
+
+    /// <summary>The tile rectangle whose road sites <see cref="UpdateAroundPosition"/> plans ahead (ADR-045 D1).</summary>
+    /// <param name="centerChunkX">Centre chunk X.</param>
+    /// <param name="centerChunkY">Centre chunk Y.</param>
+    /// <param name="chunkRadius">Load radius in chunks.</param>
+    /// <returns>The inclusive tile rectangle.</returns>
+    internal static (int MinX, int MinY, int MaxX, int MaxY) RoadPrewarmTiles(int centerChunkX, int centerChunkY, int chunkRadius) => (
+        (centerChunkX - chunkRadius) * Chunk2D.Size,
+        (centerChunkY - chunkRadius) * Chunk2D.Size,
+        ((centerChunkX + chunkRadius + 1) * Chunk2D.Size) - 1,
+        ((centerChunkY + chunkRadius + 1) * Chunk2D.Size) - 1);
 
     /// <summary>
     /// Evaluates the terrain tile at an arbitrary world tile coordinate.
