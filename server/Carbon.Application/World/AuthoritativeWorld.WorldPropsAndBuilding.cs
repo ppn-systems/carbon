@@ -74,6 +74,13 @@ public sealed partial class AuthoritativeWorld
                 return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
             }
 
+            // Audit SA-8: that reach is 4 tiles, so it must not reach through a wall. A tool swing on the tick path needs
+            // no such check: its 52 px reach cannot span a solid tile and the player's body.
+            if (!this.HasLineOfSightToTileLocked(state.Entity, tileX, tileY))
+            {
+                return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
+            }
+
             // Shares the attack cooldown with the tick-path tool swing, so the packet path cannot strike faster
             // than a normal swing (previously only the global per-connection packet limit applied).
             if (!state.Cooldowns.IsReady(AttackAbilityId, _currentTick))
@@ -371,6 +378,22 @@ public sealed partial class AuthoritativeWorld
         }
 
         return (offset, count);
+    }
+
+    // The line of sight a melee hit needs (CombatService.HasLineOfSight, one definition), to the nearest point of the
+    // tile: a prop on a solid tile cannot block the ray to itself.
+    private bool HasLineOfSightToTileLocked(Entity entity, int tileX, int tileY)
+    {
+        if (!_simulation.Entities.IsAlive(entity) || !_simulation.Entities.HasTransform(entity))
+        {
+            return false;
+        }
+
+        Vector2 pos = _simulation.Entities.GetTransform(entity).Position;
+        Vector2 nearest = new(
+            Math.Clamp(pos.X, tileX * this.TileSize, (tileX + 1) * this.TileSize),
+            Math.Clamp(pos.Y, tileY * this.TileSize, (tileY + 1) * this.TileSize));
+        return _combat.HasLineOfSight(pos, nearest);
     }
 
     private bool IsWithinInteractRangeLocked(Entity entity, int tileX, int tileY)

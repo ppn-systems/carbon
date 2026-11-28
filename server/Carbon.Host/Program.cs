@@ -192,8 +192,8 @@ public static class Program
             cts.Cancel();
         };
 
-        WorldTickHostedRunner tickRunner = new(world, loggerFactory.CreateLogger<WorldTickHostedRunner>());
-        Task tickTask = tickRunner.RunAsync(cts.Token);
+        // Audit TS-5: a failed tick stops the network app too, and the process exits non-zero so its supervisor restarts it.
+        WorldTickHostedRunner tickRunner = new(world, loggerFactory.CreateLogger<WorldTickHostedRunner>(), cts.Cancel);
 
         if (logger.IsEnabled(LogLevel.Information))
         {
@@ -210,10 +210,7 @@ public static class Program
                 pubKeyHex);
         }
 
-        await app.RunAsync(cts.Token).ConfigureAwait(false);
-        await cts.CancelAsync().ConfigureAwait(false);
-        await tickTask.ConfigureAwait(false);
-        return 0;
+        return await HostLifetime.RunAsync(app.RunAsync, tickRunner, cts).ConfigureAwait(false);
     }
 
     /// <summary>
