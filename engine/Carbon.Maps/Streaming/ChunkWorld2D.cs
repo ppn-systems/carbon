@@ -115,6 +115,16 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public int PooledChunkCount => _streamer.PooledCount;
 
     /// <summary>
+    /// Raised with a chunk's packed key (<see cref="Chunk2D.PackKey"/>) when <see cref="UpdateAroundPosition"/> evicts it,
+    /// on the streaming thread and under the chunk lock, so per-chunk caches can end with the chunk (ALLOC-7).
+    /// </summary>
+    public event Action<long>? ChunkEvicted
+    {
+        add => _streamer.Evicted += value;
+        remove => _streamer.Evicted -= value;
+    }
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="ChunkWorld2D"/> class.
     /// Automatically locates a natural safe starter location within a grand LushPlains biome.
     /// </summary>

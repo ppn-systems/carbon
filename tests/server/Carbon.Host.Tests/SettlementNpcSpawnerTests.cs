@@ -1,5 +1,6 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -41,6 +42,48 @@ public sealed class SettlementNpcSpawnerTests
         h.Actors.Values.Count(a => a.ArchetypeId == WorldActorCatalog.MasterBlacksmith).Should().BeGreaterThanOrEqualTo(1);
         h.Actors.Count.Should().Be(actorsAfterFirst, "chunks are populated once");
         h.Spawner.PopulatedChunkCount.Should().Be(9);
+    }
+
+    [Fact]
+    public void PopulateAround_TravelOutAndBack_KeepsOnlyResidentChunksAndSpawnsNothingTwice()
+    {
+        Harness h = new();
+        const float chunkWorld = Chunk2D.Size * 32f;
+        Vector2 spawn = h.Chunks.SpawnWorldPosition;
+        Vector2 start = new((MathF.Floor(spawn.X / chunkWorld) + 0.5f) * chunkWorld, (MathF.Floor(spawn.Y / chunkWorld) + 0.5f) * chunkWorld);
+        int actorsOut = 0;
+        for (int leg = 0; leg < 2; leg++)
+        {
+            for (int i = 0; i <= 30; i++)
+            {
+                int c = leg == 0 ? i : 30 - i;
+                Vector2 at = start + new Vector2(c * chunkWorld, 0f);
+                h.Chunks.UpdateAroundPosition(at, chunkRadius: 2, evictionRadius: 8);
+                h.Spawner.PopulateAround(at, radius: 2);
+            }
+
+            actorsOut = leg == 0 ? h.Actors.Count : actorsOut;
+        }
+
+        h.Actors.Count.Should().Be(actorsOut, "the way back passes only sites already populated");
+
+        // ALLOC-7: an evicted chunk leaves the set; the 35 columns of 5 passed are not all kept.
+        h.Spawner.PopulatedChunkCount.Should().BeLessThanOrEqualTo(h.Chunks.LoadedChunkCount);
+    }
+
+    [Fact]
+    public void PopulateAround_ChunksNotLoaded_RecordsNoneUntilTheyAre()
+    {
+        Harness h = new();
+        Vector2 far = new(100.5f * Chunk2D.Size * 32f, 0.5f * Chunk2D.Size * 32f);
+
+        h.Spawner.PopulateAround(far, radius: 2);
+        int before = h.Spawner.PopulatedChunkCount;
+        h.Chunks.UpdateAroundPosition(far, chunkRadius: 2, evictionRadius: 8);
+        h.Spawner.PopulateAround(far, radius: 2);
+
+        before.Should().Be(0, "a chunk not loaded is not recorded, so no eviction would ever remove it");
+        h.Spawner.PopulatedChunkCount.Should().Be(25);
     }
 
     [Fact]
