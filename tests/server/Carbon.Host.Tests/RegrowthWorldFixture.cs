@@ -155,7 +155,7 @@ internal sealed class RegrowthWorldFixture : IDisposable
         MapChunkDelta? packet = null;
         try
         {
-            if (!world.TryCreateChunkDeltaPacket(Chunk2D.ToChunkCoord(x), Chunk2D.ToChunkCoord(y), 0U, out packet) || packet is null)
+            if (!world.TryReadChunkDelta(Chunk2D.ToChunkCoord(x), Chunk2D.ToChunkCoord(y), 0U, out packet) || packet is null)
             {
                 return (false, TreeGrowthStage.Mature);
             }
@@ -178,7 +178,7 @@ internal sealed class RegrowthWorldFixture : IDisposable
         MapChunkDelta? packet = null;
         try
         {
-            return world.TryCreateChunkDeltaPacket(Chunk2D.ToChunkCoord(x), Chunk2D.ToChunkCoord(y), 0U, out packet) && packet is not null &&
+            return world.TryReadChunkDelta(Chunk2D.ToChunkCoord(x), Chunk2D.ToChunkCoord(y), 0U, out packet) && packet is not null &&
                 Array.IndexOf(packet.PlantedIndices, (ushort)((Chunk2D.ToLocalCoord(y) * Chunk2D.Size) + Chunk2D.ToLocalCoord(x))) >= 0;
         }
         finally

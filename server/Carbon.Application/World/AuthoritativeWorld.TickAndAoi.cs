@@ -162,7 +162,7 @@ public sealed partial class AuthoritativeWorld
                 Vector2 obsPos = _simulation.Entities.GetTransform(observer.Entity).Position;
                 if ((_currentTick % 10UL) == 0UL)
                 {
-                    _chunkWorld.UpdateAroundPosition(obsPos, chunkRadius: 2, evictionRadius: 8, stream: kvp.Key);
+                    _chunkWorld.UpdateAroundPosition(obsPos, chunkRadius: StreamChunkRadius, evictionRadius: 8, stream: kvp.Key);
                     _settlements.PopulateAround(obsPos, radius: 2);
                 }
 

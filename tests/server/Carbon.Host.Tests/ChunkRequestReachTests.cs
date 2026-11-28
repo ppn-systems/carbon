@@ -1,42 +1,119 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
 using System;
+using System.Collections.Generic;
+using System.Numerics;
+using Carbon.Abstractions.Persistence;
 using Carbon.Application.World;
+using Carbon.Contracts.Common;
 using Carbon.Contracts.Maps.S2C;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Settlements;
-using Carbon.Maps.Streaming;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Carbon.Host.Tests;
 
 /// <summary>
-/// Audit SA-10: which chunks a client may request. The client asks for the chunks around its own position, but the
-/// request carries only coordinates, and serving a village chunk builds the village under the world lock first.
+/// Audit SA-10: which chunks a client may request. The client asks for the chunks around its own position; the server
+/// serves only chunks within <see cref="AuthoritativeWorld.ChunkRequestReach"/> of the requester's player, so a request
+/// cannot reveal distant land or make the world build a distant village under its lock.
 /// </summary>
 public sealed class ChunkRequestReachTests
 {
+    private const ulong Visitor = 2_000UL;
+
     [Fact]
-    public void TryCreateChunkDeltaPacket_AVillageFarFromEveryPlayer_IsBuiltAndServed()
+    public void TryCreateChunkDeltaPacket_AVillageBeyondTheRequestersReach_IsRefusedAndNotBuilt()
     {
-        // Characterisation: any coordinates are served, and the far village is generated for the request.
         using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1);
         AuthoritativeWorld world = harness.World;
         (int cx, int cy) = FarVillageChunk(world, minChunks: 12);
-        world.Chunks.TryGetDelta(cx, cy, out ChunkDelta? before).Should().BeFalse("nobody has been near the village");
-        _ = before;
 
-        world.TryCreateChunkDeltaPacket(cx, cy, 0U, out MapChunkDelta? packet).Should().BeTrue("any coordinates are served");
+        world.TryCreateChunkDeltaPacket(harness.Connections[0], cx, cy, 0U, out MapChunkDelta? packet).Should().BeFalse();
         using (packet)
         {
-            packet!.StructureIndices.Should().NotBeEmpty("the village was built for the request");
+            packet.Should().BeNull();
+        }
+
+        world.Chunks.TryGetDelta(cx, cy, out _).Should().BeFalse("the village is not built for a refused request");
+    }
+
+    [Fact]
+    public void TryCreateChunkDeltaPacket_AVillageWithinTheRequestersReach_IsBuiltAndServed()
+    {
+        using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1);
+        AuthoritativeWorld world = harness.World;
+        (int cx, int cy) = FarVillageChunk(world, minChunks: 12);
+        EnterAtChunk(world, Visitor, cx, cy);
+
+        world.TryCreateChunkDeltaPacket(Visitor, cx, cy, 0U, out MapChunkDelta? packet).Should().BeTrue();
+        using (packet)
+        {
+            packet!.StructureIndices.Should().NotBeEmpty("the village was built before its chunk was served");
         }
     }
 
+    [Theory]
+    [InlineData(AuthoritativeWorld.ChunkRequestReach, true)]
+    [InlineData(AuthoritativeWorld.ChunkRequestReach + 1, false)]
+    public void TryCreateChunkDeltaPacket_AtTheEdgeOfTheReach_ServesInsideAndRefusesOutside(int chunksAway, bool served)
+    {
+        // The player stands chunksAway chunks west of the village chunk (Chebyshev distance on each axis).
+        using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1);
+        AuthoritativeWorld world = harness.World;
+        (int cx, int cy) = FarVillageChunk(world, minChunks: 12);
+        EnterAtChunk(world, Visitor, cx - chunksAway, cy);
+
+        // Entering near the village streams chunks of its site, which builds it either way; only the reply differs.
+        world.TryCreateChunkDeltaPacket(Visitor, cx, cy, 0U, out MapChunkDelta? packet).Should().Be(served);
+        packet?.Dispose();
+    }
+
+    [Fact]
+    public void TryCreateChunkDeltaPacket_AConnectionWithNoPlayerInTheWorld_IsRefused()
+    {
+        using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1);
+        AuthoritativeWorld world = harness.World;
+        int spawnCx = Chunk2D.ToChunkCoord((int)MathF.Floor(world.DefaultSpawnWorldPosition.X / world.TileSize));
+        int spawnCy = Chunk2D.ToChunkCoord((int)MathF.Floor(world.DefaultSpawnWorldPosition.Y / world.TileSize));
+
+        world.TryCreateChunkDeltaPacket(9_999UL, spawnCx, spawnCy, 0U, out MapChunkDelta? packet).Should().BeFalse();
+        using (packet)
+        {
+            packet.Should().BeNull();
+        }
+    }
+
+    [Fact]
+    public void TryCreateChunkDeltaPacket_ManyRefusals_WarnAtMostOnceAMinuteWithTheCount()
+    {
+        // The refusals are rate-limited in the log: a flood of bad requests cannot flood it.
+        CapturingLogger logger = new();
+        using TickAllocationHarness harness = TickAllocationHarness.Create(players: 1, logger: logger);
+        AuthoritativeWorld world = harness.World;
+        (int cx, int cy) = FarVillageChunk(world, minChunks: 12);
+        for (int i = 0; i < 100; i++)
+        {
+            _ = world.TryCreateChunkDeltaPacket(harness.Connections[0], cx, cy, 0U, out _);
+        }
+
+        logger.Warnings.Should().ContainSingle(w => w.StartsWith("Refused 1 chunk requests", StringComparison.Ordinal));
+
+        for (int t = 0; t < world.TickRate * 60; t++)
+        {
+            world.StepFixedTick();
+        }
+
+        _ = world.TryCreateChunkDeltaPacket(harness.Connections[0], cx, cy, 0U, out _);
+        logger.Warnings.Should().HaveCount(2).And.Contain(w => w.StartsWith("Refused 100 chunk requests", StringComparison.Ordinal),
+            "the next warning, a minute later, counts the refusals since the last one");
+    }
+
     // The chunk of a village building at least minChunks away from the spawn chunk, on both axes.
-    internal static (int ChunkX, int ChunkY) FarVillageChunk(AuthoritativeWorld world, int minChunks)
+    private static (int ChunkX, int ChunkY) FarVillageChunk(AuthoritativeWorld world, int minChunks)
     {
         ProceduralWorldGenerator generator = world.Generator;
         int spawnCx = Chunk2D.ToChunkCoord((int)MathF.Floor(world.DefaultSpawnWorldPosition.X / world.TileSize));
@@ -61,5 +138,31 @@ public sealed class ChunkRequestReachTests
         }
 
         throw new InvalidOperationException("no village far from spawn for the test seed");
+    }
+
+    // Enters a character at the centre of a chunk.
+    private static void EnterAtChunk(AuthoritativeWorld world, ulong connectionId, int chunkX, int chunkY)
+    {
+        Vector2 position = new(((chunkX * Chunk2D.Size) + (Chunk2D.Size / 2)) * world.TileSize, ((chunkY * Chunk2D.Size) + (Chunk2D.Size / 2)) * world.TileSize);
+        CharacterRecord hero = new(Guid.NewGuid(), Guid.NewGuid(), "Visitor", 1, default, position.X, position.Y, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+        world.TryEnterWorld(connectionId, hero).Status.Should().Be(OpStatus.Ok);
+    }
+
+    private sealed class CapturingLogger : ILogger
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                this.Warnings.Add(formatter(state, exception));
+            }
+        }
     }
 }
