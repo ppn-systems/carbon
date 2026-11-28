@@ -22,6 +22,7 @@ using Carbon.Desktop.Abstractions.StatusEffects;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
+using Carbon.Items.Definitions;
 using Carbon.Items.Serialization;
 using Carbon.Maps.Data;
 using Carbon.Maps.Generators;
@@ -394,7 +395,7 @@ public sealed partial class MultiplayerSession
         lock (_worldGate)
         {
             _remoteEntities.Clear();
-            _requestedChunks.Clear();
+            _chunkRequests.Reset();
             _dirtyChunks.Clear();
             _reconciler.Clear();
             _clientTick = 0U;
@@ -433,10 +434,7 @@ public sealed partial class MultiplayerSession
             _tileSize = enter.TileSize > 0f ? enter.TileSize : 32f;
             _tickRate = enter.TickRate > 0 ? enter.TickRate : (ushort)30;
             _localNetworkId = enter.PlayerNetworkId;
-            if (enter.AppearancePreset != 0)
-            {
-                _localAppearancePreset = enter.AppearancePreset;
-            }
+            _ = CharacterLook.TryCreate(enter.RaceId, enter.BodyType, enter.AppearanceOptions, out _localLook);
 
             // The world swap runs on the main thread, before the chunk deltas requested next (same FIFO inbox), so the
             // renderer never sees ChunkWorld2D/WorldSimulation replaced mid-frame (audit TS-2). Only plain values are
@@ -693,29 +691,26 @@ public sealed partial class MultiplayerSession
 
         int cx0 = Chunk2D.ToChunkCoord((int)MathF.Floor(pos.X / _tileSize));
         int cy0 = Chunk2D.ToChunkCoord((int)MathF.Floor(pos.Y / _tileSize));
-        for (int dy = -2; dy <= 2; dy++)
+        Span<long> keys = stackalloc long[ChunkDeltaRequests.MaxPerCollect];
+        int count = _chunkRequests.Collect(cx0, cy0, keys);
+        for (int i = 0; i < count; i++)
         {
-            for (int dx = -2; dx <= 2; dx++)
-            {
-                int cx = cx0 + dx;
-                int cy = cy0 + dy;
-                long key = Chunk2D.PackKey(cx, cy);
-                if (_requestedChunks.TryAdd(key, 0U))
-                {
-                    _ = this.SyncChunkDeltaAsync(cx, cy);
-                }
-            }
+            (int cx, int cy) = Chunk2D.UnpackKey(keys[i]);
+            _ = this.SyncChunkDeltaAsync(cx, cy);
         }
     }
 
     private async Task SyncChunkDeltaAsync(int cx, int cy)
     {
+        long key = Chunk2D.PackKey(cx, cy);
         TcpSession? tcp = _tcpSession;
         if (tcp is null || !tcp.IsConnected)
         {
+            _chunkRequests.Completed(key, ChunkRequestResult.Failed);
             return;
         }
 
+        bool receivedDelta = false;
         try
         {
             RequestOptions reqOpts = RequestOptions.Default.WithTimeout(5000).WithEncrypt(tcp.State.EncryptionEnabled);
@@ -735,7 +730,7 @@ public sealed partial class MultiplayerSession
                 }
 
                 ChunkDelta domainDelta = ChunkDeltaPacketMapper.FromPacket(packet);
-                _requestedChunks[Chunk2D.PackKey(cx, cy)] = packet.Revision;
+                receivedDelta = true;
 
                 // Imported on the main thread so the renderer never reads a chunk mid-import (audit TS-2).
                 this.PostWorldMutation(() =>
@@ -749,10 +744,12 @@ public sealed partial class MultiplayerSession
                     _dirtyChunks.Add((cx, cy));
                 });
             }
+
+            _chunkRequests.Completed(key, receivedDelta ? ChunkRequestResult.Delta : ChunkRequestResult.NoDelta);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _ = _requestedChunks.TryRemove(Chunk2D.PackKey(cx, cy), out _);
+            _chunkRequests.Completed(key, ChunkRequestResult.Failed);
         }
     }
 
@@ -764,7 +761,7 @@ public sealed partial class MultiplayerSession
             {
                 _localHealth = pkt.CurrentHealth;
                 _localMaxHealth = pkt.MaxHealth > 0f ? pkt.MaxHealth : 100f;
-                _localAppearancePreset = (byte)pkt.ArchetypeId;
+                _ = CharacterLook.TryCreate(pkt.RaceId, pkt.BodyType, pkt.AppearanceOptions, out _localLook);
                 _localLevel = Math.Max((ushort)1, pkt.Level);
             }
 
@@ -990,8 +987,7 @@ public sealed partial class MultiplayerSession
                     caster.ActiveActionKind = ActionAnimationKind.SwordSlash;
                 }
 
-                caster.AttackAnimDuration = isProjectile ? 0.28f : 0.45f;
-                caster.AttackAnimTimer = caster.AttackAnimDuration;
+                caster.StartSwing(caster.ActiveActionKind, isProjectile ? 0.28f : 0.45f, _comboClock);
                 _remoteViewsDirty = true;
             }
         }
@@ -1049,6 +1045,35 @@ public sealed partial class MultiplayerSession
     /// <summary>Seconds the red hit vignette fades over (visual only) after the local player is hit.</summary>
     private const float HitVignetteFadeSeconds = 0.45f;
 
+    /// <summary>
+    /// Gets whether the session flashes a hit's defender as soon as the hit arrives. The local player's own hits are left
+    /// to the impact presentation, which flashes the target when the swing makes contact (docs/art/combat-animation.md §3.1).
+    /// </summary>
+    internal static bool FlashesDefenderOnArrival(ulong attackerNetworkId, ulong localNetworkId) => attackerNetworkId != localNetworkId;
+
+    /// <summary>Gets the impact-presentation event for a <c>CombatHit</c>, or <see langword="null"/> when it dealt no damage (a dodge or a heal).</summary>
+    internal static StrikeImpactEvent? ToStrikeImpact(
+        ulong attackerNetworkId,
+        ulong defenderNetworkId,
+        ulong localNetworkId,
+        Vector2 worldPosition,
+        float damage,
+        float defenderMaxHealth,
+        bool isCritical,
+        bool isKilled) =>
+        damage > 0f
+            ? new StrikeImpactEvent(
+                attackerNetworkId,
+                defenderNetworkId,
+                worldPosition,
+                damage,
+                defenderMaxHealth,
+                isCritical,
+                isKilled,
+                attackerNetworkId == localNetworkId,
+                defenderNetworkId == localNetworkId)
+            : null;
+
     private void OnCombatHit(CombatHit pkt)
     {
         lock (_worldGate)
@@ -1082,7 +1107,7 @@ public sealed partial class MultiplayerSession
             {
                 defenderState.CurrentHealth = pkt.RemainingHealth;
                 worldPos = defenderState.Position;
-                if (pkt.Damage > 0f)
+                if (pkt.Damage > 0f && FlashesDefenderOnArrival(pkt.AttackerNetworkId, _localNetworkId))
                 {
                     defenderState.HitFlashTimer = 0.16f;
                 }
@@ -1102,11 +1127,18 @@ public sealed partial class MultiplayerSession
                     attackerState.FacingDir = Vector2.Normalize(aimDelta);
                 }
 
-                attackerState.ActiveActionKind = attackerState.Kind == EntityKind.Monster
+                ActionAnimationKind attackerKind = attackerState.Kind == EntityKind.Monster
                     ? ActionAnimationKind.MonsterStrike
-                    : ActionAnimationKind.SwordSlash;
-                attackerState.AttackAnimDuration = 0.30f;
-                attackerState.AttackAnimTimer = 0.30f;
+                    : ResolveActionKind(_items.Rules.Items.TryGet(attackerState.EquippedWeaponId, out ItemArchetype? attackerWeapon) ? attackerWeapon : null);
+                attackerState.StartSwing(attackerKind, 0.30f, _comboClock);
+            }
+
+            float defenderMax = pkt.DefenderNetworkId == _localNetworkId
+                ? _localMaxHealth
+                : _remoteEntities.TryGetValue(pkt.DefenderNetworkId, out RemoteEntityState? hitState) ? hitState.MaxHealth : 0f;
+            if (ToStrikeImpact(pkt.AttackerNetworkId, pkt.DefenderNetworkId, _localNetworkId, worldPos, pkt.Damage, defenderMax, pkt.IsCritical, pkt.IsKilled) is StrikeImpactEvent strike)
+            {
+                _strikeImpactEvents.Add(strike);
             }
 
             bool isHeal = pkt.Damage < 0f;

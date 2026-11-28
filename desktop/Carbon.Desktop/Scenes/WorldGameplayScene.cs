@@ -19,6 +19,7 @@ using Carbon.Desktop.Gameplay.Repair;
 using Carbon.Desktop.Gameplay.Trade;
 using Carbon.Desktop.Input;
 using Carbon.Desktop.Menu;
+using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Graphics.Batching.Camera;
 using Carbon.Graphics.Batching.Common;
@@ -28,7 +29,6 @@ using Carbon.Graphics.Scenes.Management;
 using Carbon.Graphics.Windowing.Abstractions;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
-using Carbon.Items.Definitions;
 using Carbon.Maps.Biomes;
 using Carbon.Maps.Building;
 using Carbon.Maps.Data;
@@ -65,13 +65,14 @@ public sealed class WorldGameplayScene : GameScene
     private HudUiState _hudState = new(); // the HUD's window state; the renderer only reads it (audit OOP-3)
     private TradeInteraction? _trade;
     private RepairInteraction? _repair;
+    private GameplayHotkeyRouter? _hotkeys;
+    private WorldInteractionInput? _worldInput;
     private Task? _pendingLogoutTask;
 
     private BiomeType _lastBiome = (BiomeType)255;
     private byte _lastHeight = 255;
     private StructureType _lastStructure = StructureType.None;
     private (int X, int Y) _lastChunk = (int.MinValue, int.MinValue);
-    private Vector2 _lastMoveDirection = Vector2.UnitX;
     private Vector2 _mouseScreenPosition;
     private Vector2 _mouseWorldPosition;
     private int _frameCount;
@@ -103,6 +104,9 @@ public sealed class WorldGameplayScene : GameScene
         _worldToScreen = world => _camera.WorldToScreen(in world);
     }
 
+    /// <summary>Gets the HUD's window state (tests).</summary>
+    internal HudUiState HudState => _hudState;
+
     /// <inheritdoc/>
     public override void Load(SceneContext context)
     {
@@ -113,10 +117,12 @@ public sealed class WorldGameplayScene : GameScene
         _cameraRig.Resize(context.WindowWidth, context.WindowHeight);
         _worldRenderer = new WorldSceneRenderer(context.Device, _options);
         _hudState = new HudUiState();
-        _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt, _hudState);
+        _hudRenderer = new HudOverlayRenderer(context.Device, _worldRenderer.VectorArt, _hudState, _flow.Ui);
         _inventoryInput.AttachHud(_hudRenderer);
-        _repair = new RepairInteraction(_session, _hudState, _options);
+        _repair = new RepairInteraction(_session, _hudState, _options, _flow.Ui);
         _trade = new TradeInteraction(_session, _hudRenderer, _options, IsTraderNpc, this.OpenForgeWindow, () => _repair.Open(RepairVenue.Blacksmith));
+        _hotkeys = new GameplayHotkeyRouter(_session, _hudRenderer, _hudState, _inventoryInput, _repair, this.ToggleForgeStationModal);
+        _worldInput = new WorldInteractionInput(_session, _hudRenderer, _inventoryInput, _interaction, _trade, _camera, this.OpenForgeWindow);
         if (!_options.MacroView)
         {
             this.ApplyZoomPreset(_hudRenderer.Settings.CameraZoomPreset);
@@ -195,7 +201,7 @@ public sealed class WorldGameplayScene : GameScene
         _mouseWorldPosition = _camera.ScreenToWorld(in _mouseScreenPosition);
         _worldRenderer.PreviewDowned = _hudState.DeathPreview is not null;
 
-        if (DeathScreenInput.Handle(_session, input.ConfirmPressed, input.LeftClickPressed, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
+        if (DeathScreenInput.Handle(_session, _hudRenderer, input.ConfirmPressed, input.LeftClickPressed, input.MouseScreenPosition, context.WindowWidth, context.WindowHeight))
         {
             if (_hudState.HasActiveModal)
             {
@@ -207,34 +213,7 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
-        if (input.EscapePressed)
-        {
-            if (_hudRenderer.InventoryDialog.IsOpen)
-            {
-                _hudRenderer.InventoryDialog.Close();
-            }
-            else if (_hudRenderer.CloseStatusEffectDetails())
-            {
-                // ADR-029: Esc closes the status effect details first.
-            }
-            else if (_hudState.ShowSettingsModal)
-            {
-                _hudState.ShowSettingsModal = false;
-            }
-            else if (_hudState.HasActiveModal)
-            {
-                _hudState.CloseAllModals();
-                _inventoryInput.ResetDragState();
-            }
-            else if (_session.LockedTargetNetworkId != 0UL)
-            {
-                _session.SetLockedTarget(0UL);
-            }
-            else
-            {
-                _hudState.ShowSettingsModal = true;
-            }
-        }
+        _hotkeys!.RouteEscape(in input);
 
         _trade?.Sync(_frameCount);
         _repair?.Update((float)dt, _frameCount);
@@ -276,69 +255,9 @@ public sealed class WorldGameplayScene : GameScene
             return;
         }
 
-        if (input.ToggleHudPressed)
-        {
-            _hudState.Visible = !_hudState.Visible;
-        }
+        _hotkeys!.RouteToggles(in input);
 
-        if (input.ToggleMinimapPressed && !_hudState.HasActiveModal)
-        {
-            _hudRenderer.Settings.ShowMinimap = !_hudRenderer.Settings.ShowMinimap;
-            _hudRenderer.Settings.Save();
-        }
-
-        if (input.ToggleRestPressed && !_hudState.HasActiveModal)
-        {
-            _ = _session.TryToggleRest();
-        }
-
-        if (input.CycleTargetPressed && !_hudState.HasActiveModal)
-        {
-            _ = _session.CycleNearestHostileTarget();
-        }
-
-        if (input.ToggleInventoryPressed)
-        {
-            _inventoryInput.ResetDragState();
-            _ = _hudState.OpenOrTogglePlayerTab(_session, PlayerModalTab.Inventory);
-        }
-
-        if (input.ToggleCharacterPressed)
-        {
-            _inventoryInput.ResetDragState();
-            _ = _hudState.OpenOrTogglePlayerTab(_session, PlayerModalTab.Character);
-        }
-
-        if (input.ToggleSkillsPressed)
-        {
-            _inventoryInput.ResetDragState();
-            if (!_hudState.OpenOrTogglePlayerTab(_session, PlayerModalTab.Skills))
-            {
-                _hudRenderer.PushNotification(GameText.Get("notice.skills_need_class"));
-            }
-        }
-
-        if (input.ToggleCraftPressed)
-        {
-            _inventoryInput.ResetDragState();
-            _ = _hudState.OpenOrTogglePlayerTab(_session, PlayerModalTab.Crafting);
-        }
-
-        if (input.ToggleForgePressed)
-        {
-            this.ToggleForgeStationModal();
-        }
-
-        if (input.ToggleRepairPressed)
-        {
-            _inventoryInput.ResetDragState();
-            _repair?.Toggle();
-        }
-
-        if (input.MoveDirection.LengthSquared() > 1e-4f)
-        {
-            _lastMoveDirection = Vector2.Normalize(input.MoveDirection);
-        }
+        _worldInput!.TrackMoveDirection(input.MoveDirection);
 
         if (_options.ForgePreview is not null && !_forgePreviewStarted)
         {
@@ -491,141 +410,7 @@ public sealed class WorldGameplayScene : GameScene
         }
         else
         {
-            _inventoryInput.ResetDragState();
-
-            if (input.LeftClickPressed)
-            {
-                Vector2 mouseScreen = input.MouseScreenPosition;
-                if (_hudRenderer.TryHandleStatusStripClick(_session, mouseScreen, context.WindowWidth))
-                {
-                    // An icon opened its details, or a click outside closed them.
-                }
-                else if (_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out byte hotbarSlot))
-                {
-                    _session.SelectHotbarSlot(hotbarSlot);
-                }
-                else if (_hudRenderer.TryHitTestSkill(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out ushort skillFromClick))
-                {
-                    _ = _session.TryCastSkill(skillFromClick, _mouseWorldPosition);
-                }
-                else
-                {
-                    Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
-                    bool openedForgeNpc = _trade?.TryClick(aimWorld) ?? false;
-                    IReadOnlyList<RemoteEntityView> remotes = _session.RemoteEntities;
-                    for (int i = 0; !openedForgeNpc && i < remotes.Count; i++)
-                    {
-                        RemoteEntityView entity = remotes[i];
-                        if (entity.Kind == EntityKind.Npc &&
-                            WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
-                            Vector2.DistanceSquared(aimWorld, entity.Position) <= (24f * 24f) &&
-                            _session.IsNearForgeStation())
-                        {
-                            openedForgeNpc = this.OpenForgeWindow();
-                            break;
-                        }
-
-                        if (entity.Kind != EntityKind.Monster || entity.CurrentHealth <= 0f)
-                        {
-                            continue;
-                        }
-
-                        float hitR = MathF.Max(22f, entity.Radius + 12f);
-                        if (Vector2.DistanceSquared(aimWorld, entity.Position) <= hitR * hitR)
-                        {
-                            _session.SetLockedTarget(entity.NetworkId);
-                            break;
-                        }
-                    }
-
-                    if (!openedForgeNpc)
-                    {
-                        _ = _session.TriggerPrimaryAction(aimWorld, out _);
-                    }
-                }
-            }
-            else if (input.LeftMouseDown && !_session.CurrentAction.IsActive)
-            {
-                Vector2 mouseScreen = input.MouseScreenPosition;
-                if (!_hudRenderer.IsOverStatusStrip(_session, mouseScreen, context.WindowWidth) &&
-                    !_hudRenderer.TryHitTestHotbar(mouseScreen, context.WindowWidth, context.WindowHeight, out _) &&
-                    !_hudRenderer.TryHitTestSkill(_session, mouseScreen, context.WindowWidth, context.WindowHeight, out _))
-                {
-                    Span<ItemSlot> curSlots = stackalloc ItemSlot[PlayerInventoryLayout.TotalCapacity];
-                    _session.CopyInventorySlots(curSlots);
-                    ItemSlot active = _session.SelectedHotbarSlot < curSlots.Length ? curSlots[_session.SelectedHotbarSlot] : ItemSlot.Empty;
-                    bool blockRepeat = !active.IsEmpty &&
-                        _session.Items.Rules.Items.TryGet(active.ItemId, out ItemArchetype? activeDef) &&
-                        activeDef.Category is ItemCategory.Consumable or ItemCategory.Placeable;
-                    if (!blockRepeat)
-                    {
-                        Vector2 aimWorld = _camera.ScreenToWorld(in mouseScreen);
-                        _ = _session.TriggerPrimaryAction(aimWorld, out _);
-                    }
-                }
-            }
-            else if (input.RightClickPressed &&
-                     _hudRenderer.TryHitTestHotbar(input.MouseScreenPosition, context.WindowWidth, context.WindowHeight, out byte quickSlot))
-            {
-                _ = _session.TryQuickMoveInventorySlot(quickSlot);
-            }
-
-            if (input.SkillPressed is ushort skillId)
-            {
-                _ = _session.TryCastSkill(skillId, _mouseWorldPosition);
-            }
-
-            if (input.SpaceActionPressed)
-            {
-                Vector2 spaceAim = _session.LocalPlayerInterpolatedPosition + (_lastMoveDirection * (_session.ChunkWorld.TileSize * 1.25f));
-                if (_session.LockedTargetNetworkId != 0UL)
-                {
-                    IReadOnlyList<RemoteEntityView> remotes = _session.RemoteEntities;
-                    for (int i = 0; i < remotes.Count; i++)
-                    {
-                        if (remotes[i].NetworkId == _session.LockedTargetNetworkId)
-                        {
-                            spaceAim = remotes[i].Position;
-                            Vector2 toTarget = spaceAim - _session.LocalPlayerInterpolatedPosition;
-                            if (toTarget.LengthSquared() > 1e-4f)
-                            {
-                                _lastMoveDirection = Vector2.Normalize(toTarget);
-                            }
-
-                            break;
-                        }
-                    }
-                }
-
-                _ = _session.TriggerPrimaryAction(spaceAim, out _);
-            }
-
-            if (input.InteractOrPickupPressed)
-            {
-                _ = _interaction.TryInteract(this.OpenForgeWindow);
-            }
-
-            if (input.HarvestPressed)
-            {
-                _ = _session.TryHarvestNearbyProp(out _);
-            }
-
-            if (input.ToggleDoorPressed)
-            {
-                _ = _interaction.TryToggleNearestDoor();
-            }
-
-            if (input.PlaceStructurePressed)
-            {
-                _ = _session.TryPlaceStarterWall(out _);
-            }
-
-            if (input.DemolishStructurePressed ||
-                (input.RightClickPressed &&
-                 !_hudRenderer.TryHitTestHotbar(input.MouseScreenPosition, context.WindowWidth, context.WindowHeight, out _)))
-            {
-                _ = _session.TryDemolishStructure(_mouseWorldPosition, out _);
-            }
+            _worldInput!.Handle(in input, _mouseWorldPosition, context.WindowWidth, context.WindowHeight);
         }
 
         if (input.DropItemPressed && _hudState.ShowPlayerModal && _inventoryInput.CarriedSlot >= 0 && !_hudRenderer.InventoryDialog.IsOpen)
@@ -704,6 +489,8 @@ public sealed class WorldGameplayScene : GameScene
 
         float frameDt = _options.CaptureFrames > 0 ? 1f / 15f : (float)dt;
         _worldRenderer.EnsureWorldBound(_session);
+        _worldRenderer.Feel = new ImpactFeelOptions(_hudRenderer.Settings.ScreenShake, _hudRenderer.Settings.ReduceFlashes);
+        _worldRenderer.QualityChoice = _hudRenderer.Settings.GraphicsQuality; // cosmetic only (ADR-041)
         _worldRenderer.Render(
             _session,
             _cameraRig,
@@ -715,6 +502,7 @@ public sealed class WorldGameplayScene : GameScene
             _hudRenderer.Font,
             _mouseWorldPosition,
             _hudRenderer.Settings.ShowCombatNumbers);
+        _hudRenderer.Settings.EffectiveGraphicsQuality = _worldRenderer.Quality;
 
         // No prompt while dead: Update stops refreshing the target then (ADR-031 death screen).
         _hudState.InteractPrompt = _session.LocalDeath is null ? _interaction.BuildPrompt(_worldToScreen) : null;
@@ -847,7 +635,7 @@ public sealed class WorldGameplayScene : GameScene
 
     /// <summary>Gets whether an NPC archetype trades (the village and sanctuary traders, ADR-025).</summary>
     private static bool IsTraderNpc(in RemoteEntityView entity) =>
-        entity.Kind == EntityKind.Npc && WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.Trader);
+        entity.Kind == EntityKind.Npc && (WorldActorCatalog.GetNpcSpec(entity.ArchetypeId).Capabilities & NpcCapabilities.Trader) != 0;
 
     private void UpdateTelemetry(IGameWindow window, int ptx, int pty)
     {

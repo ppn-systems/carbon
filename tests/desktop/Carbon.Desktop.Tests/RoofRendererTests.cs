@@ -1,6 +1,8 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
+using System.Collections.Generic;
 using System.Numerics;
+using Carbon.Desktop.Rendering.Atmospherics;
 using Carbon.Desktop.Rendering.World;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
@@ -74,7 +76,50 @@ public sealed class RoofRendererTests
         RoofRenderer.FadeFor(inside: false, RoofRenderer.FadeStartTiles * 0.5f).Should().BeInRange(RoofRenderer.NearAlpha, 1f);
     }
 
-    private static (RoofRenderer Roofs, float TileSize) NewVillage()
+    // Village lights at night (ADR-041): every room glows softly, light spills out of front doors, and a smithy's stove
+    // burns as a forge fire.
+    [Fact]
+    public void CollectLights_RoomsInView_GlowAndSpillLightOutOfTheFrontDoor()
+    {
+        (RoofRenderer roofs, float tile) = NewVillage();
+        List<PointLight> lights = new();
+
+        roofs.CollectLights(lights, 0f, 0f, 40f * tile, 30f * tile, 0f);
+
+        Vector2 eastRoom = Centre(23, 12, tile);
+        lights.Should().Contain(l => Vector2.Distance(l.Position, eastRoom) < tile, "the east house's room glows from its centre");
+        Vector2 frontDoor = Centre(23, 14, tile);
+        lights.Should().Contain(
+            l => Vector2.Distance(l.Position, frontDoor) < tile && l.Position.Y > frontDoor.Y,
+            "the front door spills light outward, south of the door");
+    }
+
+    [Fact]
+    public void CollectLights_RoomsOutOfView_AddNothing()
+    {
+        (RoofRenderer roofs, float tile) = NewVillage();
+        List<PointLight> lights = new();
+
+        roofs.CollectLights(lights, 200f * tile, 200f * tile, 240f * tile, 230f * tile, 0f);
+
+        lights.Should().BeEmpty("rooms far outside the view light nothing on screen");
+    }
+
+    [Fact]
+    public void CollectLights_SmithyWithStove_BurnsAForgeFire()
+    {
+        (RoofRenderer roofs, float tile) = NewVillage(smithy: true);
+        List<PointLight> lights = new();
+
+        roofs.CollectLights(lights, 0f, 0f, 40f * tile, 30f * tile, 0f);
+
+        Vector2 stove = Centre(24, 11, tile);
+        lights.Should().Contain(
+            l => Vector2.Distance(l.Position, stove) < 1f && l.Radius > 100f && l.Color.R > l.Color.B * 2,
+            "a smithy's stove is a wide, orange forge fire");
+    }
+
+    private static (RoofRenderer Roofs, float TileSize) NewVillage(bool smithy = false)
     {
         ChunkWorld2D world = new(new ProceduralWorldGenerator(1337UL));
         BuildingGrid grid = world.Buildings;
@@ -87,6 +132,11 @@ public sealed class RoofRendererTests
         Place(grid, StructureType.WoodDoor, 12, 14);
         Box(grid, 21, 10, 25, 14);
         Place(grid, StructureType.WoodDoor, 23, 14);
+        if (smithy)
+        {
+            Place(grid, StructureType.Stove, 24, 11);
+            Place(grid, StructureType.ForgeAnvil, 22, 11);
+        }
 
         float tile = world.TileSize;
         RoofRenderer roofs = new(tile);

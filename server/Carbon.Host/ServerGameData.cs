@@ -14,6 +14,7 @@ using Carbon.Creatures.Definitions;
 using Carbon.Economy;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
+using Carbon.Items.Races;
 using Carbon.Maps.Building;
 using Carbon.Maps.Hydrology;
 using Carbon.Maps.Props;
@@ -36,6 +37,7 @@ namespace Carbon.Host;
 /// <param name="Stamina">Stamina tuning (ADR-033).</param>
 /// <param name="Water">Water movement and oxygen rules (ADR-032).</param>
 /// <param name="Props">Natural prop regrowth rules (ADR-040).</param>
+/// <param name="Races">Playable races, bodies and appearance options (ADR-042).</param>
 internal sealed record ServerGameData(
     GameEconomy Economy,
     NeedsConfig Needs,
@@ -44,7 +46,8 @@ internal sealed record ServerGameData(
     StatusEffectCatalog StatusEffects,
     StaminaConfig Stamina,
     WaterRules Water,
-    PropRegrowthRules Props)
+    PropRegrowthRules Props,
+    RaceCatalog Races)
 {
     /// <summary>
     /// Documents a running server cannot swap yet, because the building service and the creature systems are built once
@@ -78,7 +81,8 @@ internal sealed record ServerGameData(
             }
 
             PropRegrowthRules props = PropRegrowthRules.LoadFromJson(Read(catalog, PropRegrowthRules.DocumentName + ".json"));
-            return new ServerGameData(economy, needs, food, progression, statusEffects, stamina, water, props);
+            RaceCatalog races = RaceCatalog.LoadFromJson(Read(catalog, RaceCatalog.DocumentName + ".json"));
+            return new ServerGameData(economy, needs, food, progression, statusEffects, stamina, water, props, races);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or ArgumentException or FormatException)
         {
@@ -125,8 +129,9 @@ internal sealed record ServerGameData(
             }
 
             ServerGameData data = Load(next);
+            data.Races.RequireCompatibleWith(world.Races);
             // Item stats and recipes (GameEconomy.ItemRules) swap with the economy, matching what clients re-sync.
-            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food, data.Progression, data.StatusEffects, data.Stamina, data.Water, data.Props);
+            return () => world.ApplyGameData(data.Economy, data.Needs, data.Food, data.Progression, data.StatusEffects, data.Stamina, data.Water, data.Props, data.Races);
         });
     }
 

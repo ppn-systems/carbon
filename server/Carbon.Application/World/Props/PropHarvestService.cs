@@ -297,11 +297,11 @@ internal sealed class PropHarvestService
             {
                 toolTier = Math.Max((byte)1, toolDef.HarvestTier);
                 bool isWoodStruct = targetStruct.Material == StructureMaterial.Wood;
-                if (isWoodStruct && toolDef.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
+                if (isWoodStruct && (toolDef.Capabilities & ToolCapabilities.ChopFlora) != 0)
                 {
                     dmg = MathF.Max(40f, toolDef.FloraHarvestDamage);
                 }
-                else if (!isWoodStruct && toolDef.Capabilities.HasFlag(ToolCapabilities.MineMineral))
+                else if (!isWoodStruct && (toolDef.Capabilities & ToolCapabilities.MineMineral) != 0)
                 {
                     dmg = MathF.Max(45f, toolDef.MineralHarvestDamage);
                 }

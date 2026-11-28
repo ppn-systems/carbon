@@ -17,6 +17,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Maps.Building;
+using Carbon.Maps.Generators;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.World;
@@ -116,7 +117,8 @@ internal sealed class RecordingWorldSession : IWorldSession
     public float BuildReachTiles => Unused<float>();
     public string ConnectionLabel => Unused<string>();
     public string ActiveCharacterName => Unused<string>();
-    public byte LocalPlayerAppearancePreset => Unused<byte>();
+    public CharacterLook LocalPlayerLook => Unused<CharacterLook>();
+    public SyncedRaceCatalog Races => Unused<SyncedRaceCatalog>();
     public bool IsAuthenticated => Unused<bool>();
     public WorldSimulation Simulation => Unused<WorldSimulation>();
     public Entity LocalPlayer => Unused<Entity>();
@@ -189,9 +191,11 @@ internal sealed class RecordingWorldSession : IWorldSession
     public Task LogoutAsync(CancellationToken ct = default) => Unused<Task>();
     public Task InitializeAsync(CancellationToken ct = default) => Unused<Task>();
     public Task<IReadOnlyList<CharacterRosterEntry>> ListCharactersAsync(CancellationToken ct = default) => Unused<Task<IReadOnlyList<CharacterRosterEntry>>>();
-    public Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, byte appearancePreset, CancellationToken ct = default) => Unused<Task<(bool, string)>>();
+    public Task<(bool Succeeded, string Message)> CreateCharacterAsync(string characterName, CharacterLook look, CancellationToken ct = default) => Unused<Task<(bool, string)>>();
     public Task<(bool Succeeded, string Message)> EnterWorldAsync(Guid characterId, CancellationToken ct = default) => Unused<Task<(bool, string)>>();
     public Task<ConfigCatalog> WaitForGameConfigAsync(CancellationToken ct = default) => Unused<Task<ConfigCatalog>>();
+
+    public ProceduralWorldGenerator? TryCreateWorldGenerator(ulong seed) => null;
     public void Update(double dt, Vector2 moveDir, bool sprint) => Unused<bool>();
     public void SelectHotbarSlot(byte slotIndex) => Unused<bool>();
     public bool TriggerPrimaryAction(Vector2 aimWorldPosition, out (int ChunkX, int ChunkY) invalidatedChunk) => throw NotUsed();

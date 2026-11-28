@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Carbon.Abstractions.Persistence;
 using Carbon.Application.Identity;
+using Carbon.Contracts.Identity;
 using Carbon.Application.World;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
@@ -80,7 +81,8 @@ public sealed class MultiplayerSessionTests
             Pbkdf2PasswordHasher hasher = new();
             using AuthService authService = new(accounts, characters, hasher);
             SessionTransportRegistry transportRegistry = new();
-            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance);
+            using PacketPool outboundPackets = new();
+            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance, outboundPackets);
 
             HostRuntimeOptions hostOptions = new()
             {
@@ -140,14 +142,22 @@ public sealed class MultiplayerSessionTests
                 regA.Succeeded.Should().BeTrue();
                 clientA.IsAuthenticated.Should().BeTrue();
 
-                (bool createdA, _) = await clientA.CreateCharacterAsync("HeroA", appearancePreset: 1).ConfigureAwait(true);
+                // ADR-042: the server rejects a look races.json does not define, and stores a valid one as sent.
+                (bool createdUnknownRace, _) = await clientA.CreateCharacterAsync("Ghost", new CharacterLook(999, 0, [0, 0, 0, 0])).ConfigureAwait(true);
+                createdUnknownRace.Should().BeFalse("race 999 is not in races.json");
+                (bool createdBadChoice, _) = await clientA.CreateCharacterAsync("Ghost", new CharacterLook(1, 0, [0, 0, 0, 9])).ConfigureAwait(true);
+                createdBadChoice.Should().BeFalse("the human skin tone has four choices");
+
+                CharacterLook lookA = new(1, 0, [1, 2, 3, 0]);
+                CharacterLook lookB = new(1, 0, [2, 0, 1, 3]);
+                (bool createdA, _) = await clientA.CreateCharacterAsync("HeroA", lookA).ConfigureAwait(true);
                 createdA.Should().BeTrue();
                 IReadOnlyList<CharacterRosterEntry> rosterA = await clientA.ListCharactersAsync().ConfigureAwait(true);
-                rosterA.Should().ContainSingle(c => c.Name == "HeroA" && c.AppearancePreset == 1);
+                rosterA.Should().ContainSingle(c => c.Name == "HeroA" && c.Look == lookA, "the roster carries the stored look");
 
                 AuthenticationResult regB = await clientB.RegisterAsync("127.0.0.1", tcpPort, "playerB", "password123").ConfigureAwait(true);
                 regB.Succeeded.Should().BeTrue();
-                (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", appearancePreset: 2).ConfigureAwait(true);
+                (bool createdB, _) = await clientB.CreateCharacterAsync("HeroB", lookB).ConfigureAwait(true);
                 createdB.Should().BeTrue();
                 IReadOnlyList<CharacterRosterEntry> freshRosterB = await clientB.ListCharactersAsync().ConfigureAwait(true);
                 freshRosterB.Should().ContainSingle(c => c.Name == "HeroB" && c.Class == Contracts.Identity.HeroArchetypeClass.None, "new heroes start classless (ADR-030)");
@@ -160,7 +170,7 @@ public sealed class MultiplayerSessionTests
                 IReadOnlyList<CharacterRosterEntry> rosterB = await clientB.ListCharactersAsync().ConfigureAwait(true);
                 rosterB.Should().ContainSingle(c =>
                     c.Name == "HeroB" &&
-                    c.AppearancePreset == 2 &&
+                    c.Look == lookB &&
                     c.Class == Contracts.Identity.HeroArchetypeClass.Arcanist);
 
                 float initialX = rosterA[0].PositionX;
@@ -184,7 +194,7 @@ public sealed class MultiplayerSessionTests
                 clientA.IsUdpActive.Should().BeTrue("DatagramSession should establish Authenticated UDP over NDP");
                 clientA.ConnectionLabel.Should().Be("ONLINE");
                 clientA.ActiveCharacterName.Should().Be("HeroA");
-                clientA.LocalPlayerAppearancePreset.Should().Be(1);
+                clientA.LocalPlayerLook.Should().Be(lookA, "CharacterEnterWorld carries the look");
                 clientA.LocalPlayerLevel.Should().BeGreaterThanOrEqualTo(1);
                 clientA.LocalPlayerMaxMana.Should().BeGreaterThan(0f);
                 clientA.LocalPlayerMaxStamina.Should().BeGreaterThan(0f);
@@ -235,7 +245,8 @@ public sealed class MultiplayerSessionTests
                     "peer spawn over encrypted TCP and UDP delta updates should replicate HeroA to clientB");
                 RemoteEntityView heroA = clientB.RemoteEntities.First(e => e.Name == "HeroA");
                 heroA.Position.X.Should().BeGreaterThan(initialX + 32f);
-                heroA.ArchetypeId.Should().Be(1);
+                heroA.Look.Should().Be(lookA, "EntitySpawn replicates a player's look to observers");
+                heroA.ArchetypeId.Should().Be(0, "players carry their look, not an archetype");
 
                 // 4b. Verify hotbar slots classify distinct client animations for Axe, Pickaxe, and Sword.
                 Vector2 swingAim = clientA.LocalPlayerInterpolatedPosition + new Vector2(32f, 0f);

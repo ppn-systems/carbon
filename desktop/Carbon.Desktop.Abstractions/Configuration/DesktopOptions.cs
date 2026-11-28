@@ -71,6 +71,24 @@ public sealed class DesktopOptions
     public int FrameStatsFrames { get; init; }
 
     /// <summary>
+    /// Gets or sets a forced graphics quality preset (<c>CARBON_GRAPHICS_QUALITY=low|medium|high</c>; screenshots and
+    /// perf runs). It wins over the saved setting and the GPU default (ADR-041). Cosmetic only.
+    /// </summary>
+    public string? GraphicsQualityOverride { get; init; }
+
+    /// <summary>
+    /// Gets or sets the initial window size in pixels (<c>CARBON_WINDOW_SIZE=WxH</c>, e.g. <c>1920x1080</c>; default
+    /// 1280 × 720). The screenshot tool passes its <c>WIDTH</c> × <c>HEIGHT</c> so captures match that resolution.
+    /// </summary>
+    public (int Width, int Height) WindowSize { get; init; } = (1280, 720);
+
+    /// <summary>
+    /// Gets or sets whether the menu backdrop moves (<c>CARBON_MENU_MOTION=0</c> holds it still, for players who prefer
+    /// less motion; docs/art/menu-ui.md rule 15). On by default.
+    /// </summary>
+    public bool MenuMotion { get; init; } = true;
+
+    /// <summary>
     /// Gets or sets a value indicating whether the scene opens the nearest trader's window once in the world
     /// (<c>CARBON_OPEN_TRADER=1</c>; screenshot tool). The capture waits for the trader's stock to arrive.
     /// </summary>
@@ -123,9 +141,9 @@ public sealed class DesktopOptions
 
     /// <summary>
     /// Gets or sets a menu scene to capture instead of the world
-    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters</c>, ADR-023 D8, ADR-037). Each needs
-    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen.
-    /// Empty when unset.
+    /// (<c>CARBON_CAPTURE_SCENE=start|login|register|server|characters|roster</c>, ADR-023 D8, ADR-037). Each needs
+    /// <c>CARBON_AUTO_LOGIN=0</c>; <c>characters</c> registers the configured account and captures the character screen,
+    /// and <c>roster</c> also creates two sample heroes and captures the roster. Empty when unset.
     /// </summary>
     public string CaptureScene { get; init; } = string.Empty;
 
@@ -156,6 +174,12 @@ public sealed class DesktopOptions
 
     /// <summary>Gets or sets the preferred character display name when creating a starter character.</summary>
     public string CharacterName { get; init; } = "Hero";
+
+    /// <summary>
+    /// Gets the body type code (<c>races.json</c>, e.g. <c>female</c>) an auto-login starter character is created with
+    /// (<c>CARBON_CHARACTER_BODY</c>, screenshot capture); <see langword="null"/> keeps the race's first body (ADR-042).
+    /// </summary>
+    public string? CharacterBodyCode { get; init; }
 
     /// <summary>
     /// Gets or sets the file that keeps the "Remember me" account (<c>CARBON_ACCOUNT_FILE</c>; ADR-037). It holds a
@@ -276,6 +300,9 @@ public sealed class DesktopOptions
             ScreenshotPath = screenshotPath,
             CaptureFrames = captureFrames,
             FrameStatsFrames = frameStatsFrames,
+            GraphicsQualityOverride = get("CARBON_GRAPHICS_QUALITY") is { Length: > 0 } quality ? quality.Trim() : null,
+            WindowSize = ParseSize(get("CARBON_WINDOW_SIZE")) ?? (1280, 720),
+            MenuMotion = !string.Equals(get("CARBON_MENU_MOTION")?.Trim(), "0", StringComparison.Ordinal),
             AutoExit = string.Equals(get("CARBON_AUTO_EXIT"), "1", StringComparison.Ordinal),
             OpenTrader = string.Equals(get("CARBON_OPEN_TRADER"), "1", StringComparison.Ordinal),
             TradePreview = string.Equals(get("CARBON_TRADE_PREVIEW"), "basket", StringComparison.Ordinal),
@@ -303,6 +330,7 @@ public sealed class DesktopOptions
             Username = username,
             Password = password,
             CharacterName = charName,
+            CharacterBodyCode = get("CARBON_CHARACTER_BODY") is { Length: > 0 } body ? body.Trim() : null,
             ConfigCacheDirectory = configCache,
             AccountFile = get("CARBON_ACCOUNT_FILE") is { Length: > 0 } accountFile ? accountFile.Trim() : DefaultAccountFile(),
             CustomServerEntry = string.Equals(get("CARBON_DEV_SERVERS"), "1", StringComparison.Ordinal),
@@ -314,6 +342,16 @@ public sealed class DesktopOptions
 
     private static string DefaultConfigCacheDirectory() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Carbon", "config-cache");
+
+    /// <summary>Parses a <c>WxH</c> size between 320 × 200 and 7680 × 4320, or returns <see langword="null"/>.</summary>
+    private static (int Width, int Height)? ParseSize(string? value) =>
+        value is { Length: > 0 } &&
+        value.Trim().ToLowerInvariant().Split('x') is [string w, string h] &&
+        int.TryParse(w, NumberStyles.Integer, CultureInfo.InvariantCulture, out int width) &&
+        int.TryParse(h, NumberStyles.Integer, CultureInfo.InvariantCulture, out int height) &&
+        width is >= 320 and <= 7680 && height is >= 200 and <= 4320
+            ? (width, height)
+            : null;
 
     /// <summary>Parses an <c>x,y</c> pair (invariant culture), or returns <see langword="null"/> when unset or malformed.</summary>
     private static (float X, float Y)? ParsePoint(string? value) =>

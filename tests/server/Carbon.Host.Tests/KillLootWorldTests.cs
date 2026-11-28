@@ -55,7 +55,7 @@ public sealed class KillLootWorldTests
             InventoryContainer bag = new(PlayerInventoryLayout.TotalCapacity);
             StarterGameCatalog.GrantStarterLoadout(bag);
             CharacterRecord template = new(
-                Guid.NewGuid(), Guid.NewGuid(), "Scout", 1, 0, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
+                Guid.NewGuid(), Guid.NewGuid(), "Scout", 1, default, 0f, 0f, 100f, 100f, 2, InventoryBinaryCodec.Serialize(bag), DateTimeOffset.UtcNow);
 
             // Probe wilderness chunks until a monster backed by a loot table enters AoI.
             EntitySpawnSnapshot? mob = null;

@@ -15,7 +15,10 @@ using Carbon.Desktop.Networking.Session;
 using Carbon.Desktop.Rendering.Hud;
 using Carbon.Desktop.Tests.Fakes;
 using Carbon.Graphics.Batching.Common;
+using Carbon.Desktop.Rendering.VectorArt;
+using Carbon.Graphics.OpenGL.Abstractions;
 using FluentAssertions;
+using NSubstitute;
 using Xunit;
 
 namespace Carbon.Desktop.Tests;
@@ -24,10 +27,14 @@ namespace Carbon.Desktop.Tests;
 /// ADR-031 client side: the server's <see cref="PlayerDeath"/> push opens the death screen, and Respawn (Enter or the
 /// button) sends exactly one <c>RespawnRequest</c> until the server answers. The gold drop is not shown.
 /// </summary>
-public sealed class DeathScreenTests
+public sealed class DeathScreenTests : IDisposable
 {
     private const int Width = 1280;
     private const int Height = 720;
+
+    private readonly HudOverlayRenderer _hud = new(Substitute.For<IGraphicsDevice>(), Substitute.For<IVectorArtRepository>());
+
+    public void Dispose() => _hud.Dispose();
 
     [Fact]
     public void OnPlayerDeath_MonsterKill_OpensTheDeathScreenWithTheKiller()
@@ -100,8 +107,8 @@ public sealed class DeathScreenTests
 
         sent.Should().Be(1);
         death.IsRespawnPending.Should().BeTrue();
-        answer.SetResult(OpStatus.Ok);
-        SpinWait.SpinUntil(() => death.Death is null, TimeSpan.FromSeconds(5)).Should().BeTrue("the server accepted the respawn, so the death screen closes");
+        CompleteHere(answer, OpStatus.Ok);
+        death.Death.Should().BeNull("the server accepted the respawn, so the death screen closes");
         death.IsRespawnPending.Should().BeFalse();
     }
 
@@ -162,7 +169,7 @@ public sealed class DeathScreenTests
 
         for (int frame = 0; frame < 3; frame++)
         {
-            DeathScreenInput.Handle(session, confirmPressed: true, leftClickPressed: false, Vector2.Zero, Width, Height)
+            DeathScreenInput.Handle(session, _hud, confirmPressed: true, leftClickPressed: false, Vector2.Zero, Width, Height)
                 .Should().BeTrue("the death screen swallows gameplay input");
         }
 
@@ -174,13 +181,13 @@ public sealed class DeathScreenTests
     {
         RecordingWorldSession session = new() { LocalDeath = new DeathView(DeathCause.Starvation, 0) };
         await using ConfiguredAsyncDisposable scope = session.ConfigureAwait(true);
-        RectangleF button = HudOverlayRenderer.GetRespawnButtonRect(Width, Height);
+        RectangleF button = _hud.GetRespawnButtonRect(Width, Height);
 
-        DeathScreenInput.Handle(session, confirmPressed: false, leftClickPressed: true, new Vector2(10f, 10f), Width, Height).Should().BeTrue();
+        DeathScreenInput.Handle(session, _hud, confirmPressed: false, leftClickPressed: true, new Vector2(10f, 10f), Width, Height).Should().BeTrue();
         session.Commands.Should().BeEmpty("a click outside the button does nothing");
 
         Vector2 center = new(button.X + (button.Width * 0.5f), button.Y + (button.Height * 0.5f));
-        DeathScreenInput.Handle(session, confirmPressed: false, leftClickPressed: true, center, Width, Height).Should().BeTrue();
+        DeathScreenInput.Handle(session, _hud, confirmPressed: false, leftClickPressed: true, center, Width, Height).Should().BeTrue();
         session.Commands.Should().Equal("Respawn()");
     }
 
@@ -190,7 +197,7 @@ public sealed class DeathScreenTests
         RecordingWorldSession session = new();
         await using ConfiguredAsyncDisposable scope = session.ConfigureAwait(true);
 
-        DeathScreenInput.Handle(session, confirmPressed: true, leftClickPressed: true, Vector2.Zero, Width, Height).Should().BeFalse();
+        DeathScreenInput.Handle(session, _hud, confirmPressed: true, leftClickPressed: true, Vector2.Zero, Width, Height).Should().BeFalse();
 
         session.Commands.Should().BeEmpty();
     }
@@ -204,6 +211,23 @@ public sealed class DeathScreenTests
         }
 
         return dir?.FullName ?? throw new InvalidOperationException("Carbon.slnx not found above the test output directory.");
+    }
+
+    // Completes the server's answer so the session's continuation runs here, at once. Under xUnit's AsyncTestSyncContext,
+    // SetResult does not run an awaiting continuation inline: it queues it to the thread pool, and a test that then waits
+    // a fixed time for it fails whenever a loaded run starves the pool (seen once in verify.sh).
+    private static void CompleteHere(TaskCompletionSource<OpStatus> answer, OpStatus status)
+    {
+        SynchronizationContext? context = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try
+        {
+            answer.SetResult(status);
+        }
+        finally
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+        }
     }
 
     private static DeathSession Dead(Func<Task<OpStatus>> send)

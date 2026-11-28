@@ -167,7 +167,7 @@ public sealed class StatusEffectWorldTests
     }
 
     private static CharacterRecord Character(string statusEffects, float offsetX = 0f, float health = 100f) => new(
-        Guid.NewGuid(), Guid.NewGuid(), "Hero" + offsetX.ToString(System.Globalization.CultureInfo.InvariantCulture), 1, 0, offsetX, 0f, health, 100f, 0, [], DateTimeOffset.UnixEpoch)
+        Guid.NewGuid(), Guid.NewGuid(), "Hero" + offsetX.ToString(System.Globalization.CultureInfo.InvariantCulture), 1, default, offsetX, 0f, health, 100f, 0, [], DateTimeOffset.UnixEpoch)
     {
         StatusEffects = statusEffects,
     };

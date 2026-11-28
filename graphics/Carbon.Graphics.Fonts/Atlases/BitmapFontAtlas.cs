@@ -35,8 +35,31 @@ public sealed class BitmapFontAtlas : IFontAtlas
     /// Initializes a new instance of the <see cref="BitmapFontAtlas"/> class.
     /// </summary>
     /// <param name="texture">The font atlas texture.</param>
-    public BitmapFontAtlas(ITexture texture) =>
+    public BitmapFontAtlas(ITexture texture)
+        : this(texture, 1f)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BitmapFontAtlas"/> class whose glyph bitmaps were baked at
+    /// <paramref name="texelsPerUnit"/> texels per layout unit (a font re-baked for a UI scale: offsets and advances are in
+    /// layout units, the glyph rectangles in texels).
+    /// </summary>
+    /// <param name="texture">The font atlas texture.</param>
+    /// <param name="texelsPerUnit">Atlas texels per layout unit (1 for a font drawn at its baked size).</param>
+    public BitmapFontAtlas(ITexture texture, float texelsPerUnit)
+    {
         this.Texture = texture ?? throw new ArgumentNullException(nameof(texture));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(texelsPerUnit, nameof(texelsPerUnit));
+        this.TexelsPerUnit = texelsPerUnit;
+    }
+
+    /// <summary>
+    /// Gets the number of atlas texels per layout unit. A font baked at <c>20·s</c> pixels for a UI drawn <c>s</c> times
+    /// larger has <c>s</c> here, so it lays text out exactly like the <c>20</c> pixel font while each texel lands on one
+    /// screen pixel.
+    /// </summary>
+    public float TexelsPerUnit { get; }
 
     /// <summary>
     /// Registers a glyph in the atlas. Uses dense array for ASCII code points (0-127) and sparse map for others.

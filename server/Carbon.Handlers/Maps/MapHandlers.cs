@@ -34,13 +34,14 @@ public static partial class MapHandlers
         // Captured before the first await: the pooled context may be recycled while it is suspended (audit TS-4).
         IPacketSender sender = context.Sender;
         MapChunkRequest req = context.Packet;
+        ulong connectionId = s_transports.ResolveLogicalConnectionId(context.Connection);
         int chunkX = req.ChunkX;
         int chunkY = req.ChunkY;
 
         MapChunkDelta? snapshot = null;
         try
         {
-            if (s_world.TryCreateChunkDeltaPacket(chunkX, chunkY, req.KnownRevision, out snapshot) && snapshot is not null)
+            if (s_world.TryCreateChunkDeltaPacket(connectionId, chunkX, chunkY, req.KnownRevision, out snapshot) && snapshot is not null)
             {
                 using PacketScope<MapChunkDelta> lease = PacketFactory<MapChunkDelta>.Acquire();
                 MapChunkDelta row = lease.Value;

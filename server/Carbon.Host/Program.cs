@@ -14,6 +14,7 @@ using Carbon.Infrastructure.Configuration;
 using Carbon.Infrastructure.Persistence.Postgres;
 using Carbon.Infrastructure.Persistence.Sqlite;
 using Carbon.Infrastructure.Security;
+using Carbon.Maps.Roads;
 using Carbon.Server.Configuration;
 using Microsoft.Extensions.Logging;
 using Nalix.Hosting;
@@ -106,7 +107,9 @@ public static class Program
 
         Pbkdf2PasswordHasher hasher = new();
         SessionTransportRegistry transportRegistry = new();
-        WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>());
+        // ADR-043: outbound packets are leased from a pool the host owns for its lifetime.
+        using PacketPool outboundPackets = new();
+        WorldOutboundSink outboundSink = new(transportRegistry, loggerFactory.CreateLogger<WorldOutboundSink>(), outboundPackets);
         // Gameplay config is server-authoritative (ADR-014): the server builds its domains from the same snapshot it
         // serves to clients, so both sides always run on identical bytes.
         ConfigRepository config = ConfigRepository.Load(ResolveConfigDirectory(options.ConfigDirectory), s_serverOnlyDocuments);
@@ -140,10 +143,11 @@ public static class Program
             entropy: entropy,
             statusEffects: gameData.StatusEffects,
             stamina: gameData.Stamina,
-            logger: logger);
-        world.ApplyGameData(gameData.Economy, gameData.Needs, gameData.Food, gameData.Progression, gameData.StatusEffects, gameData.Stamina, gameData.Water, gameData.Props);
+            logger: logger,
+            roadPrewarm: new RoadPrewarmOptions(options.RoadPrewarmWorkers));
+        world.ApplyGameData(gameData.Economy, gameData.Needs, gameData.Food, gameData.Progression, gameData.StatusEffects, gameData.Stamina, gameData.Water, gameData.Props, gameData.Races);
         ServerGameData.BindHotReload(config, world);
-        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression, rememberTokenStore)
+        using AuthService authService = new(accountStore, characterStore, hasher, time: null, () => world.ItemRules, () => world.Progression, rememberTokenStore, () => world.Races)
         {
             DebugForgeKit = options.DebugOverrides.ForgeKit,
             DebugStarterItems = options.DebugOverrides.StarterItems,
@@ -188,8 +192,8 @@ public static class Program
             cts.Cancel();
         };
 
-        WorldTickHostedRunner tickRunner = new(world, loggerFactory.CreateLogger<WorldTickHostedRunner>());
-        Task tickTask = tickRunner.RunAsync(cts.Token);
+        // Audit TS-5: a failed tick stops the network app too, and the process exits non-zero so its supervisor restarts it.
+        WorldTickHostedRunner tickRunner = new(world, loggerFactory.CreateLogger<WorldTickHostedRunner>(), cts.Cancel);
 
         if (logger.IsEnabled(LogLevel.Information))
         {
@@ -206,10 +210,7 @@ public static class Program
                 pubKeyHex);
         }
 
-        await app.RunAsync(cts.Token).ConfigureAwait(false);
-        await cts.CancelAsync().ConfigureAwait(false);
-        await tickTask.ConfigureAwait(false);
-        return 0;
+        return await HostLifetime.RunAsync(app.RunAsync, tickRunner, cts).ConfigureAwait(false);
     }
 
     /// <summary>

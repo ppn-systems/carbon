@@ -22,6 +22,7 @@ using Carbon.Maps.Networking;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
+using Microsoft.Extensions.Logging;
 
 namespace Carbon.Application.World;
 
@@ -29,19 +30,19 @@ public sealed partial class AuthoritativeWorld
 {
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitHarvestPropAsync(ulong connectionId, int tileX, int tileY) =>
-        _commands.Submit(WorldCommandKind.HarvestProp, connectionId, tileX, tileY);
+        _commands.SubmitAsync(WorldCommandKind.HarvestProp, connectionId, tileX, tileY);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitPlaceStructureAsync(ulong connectionId, int tileX, int tileY, StructureType structureType, StructureRotation rotation = StructureRotation.North) =>
-        _commands.Submit(WorldCommandKind.PlaceStructure, connectionId, tileX, tileY, structureType, rotation);
+        _commands.SubmitAsync(WorldCommandKind.PlaceStructure, connectionId, tileX, tileY, structureType, rotation);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitDemolishStructureAsync(ulong connectionId, int tileX, int tileY) =>
-        _commands.Submit(WorldCommandKind.DemolishStructure, connectionId, tileX, tileY);
+        _commands.SubmitAsync(WorldCommandKind.DemolishStructure, connectionId, tileX, tileY);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitToggleDoorAsync(ulong connectionId, int tileX, int tileY) =>
-        _commands.Submit(WorldCommandKind.ToggleDoor, connectionId, tileX, tileY);
+        _commands.SubmitAsync(WorldCommandKind.ToggleDoor, connectionId, tileX, tileY);
 
     /// <inheritdoc/>
     public void FailPendingCommands() => _commands.FailAll(OpStatus.Conflict);
@@ -69,6 +70,13 @@ public sealed partial class AuthoritativeWorld
 
             // The "harvest nearby" key deliberately reaches the interact range (the client searches +/-2 tiles).
             if (!this.IsWithinInteractRangeLocked(state.Entity, tileX, tileY))
+            {
+                return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
+            }
+
+            // Audit SA-8: that reach is 4 tiles, so it must not reach through a wall. A tool swing on the tick path needs
+            // no such check: its 52 px reach cannot span a solid tile and the player's body.
+            if (!this.HasLineOfSightToTileLocked(state.Entity, tileX, tileY))
             {
                 return new WorldMutationOutcome(OpStatus.OutOfRange, 0);
             }
@@ -251,24 +259,80 @@ public sealed partial class AuthoritativeWorld
     }
 
     /// <inheritdoc/>
-    public bool TryCreateChunkDeltaPacket(int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet)
+    public bool TryCreateChunkDeltaPacket(ulong connectionId, int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet)
     {
         lock (_gate)
         {
-            // A village chunk is never served before its buildings exist (ADR-025).
-            _settlements.EnsureVillageBuilt(chunkX, chunkY);
-            if (_chunkWorld.TryGetDelta(chunkX, chunkY, out ChunkDelta? delta) &&
-                delta is not null &&
-                !delta.IsEmpty &&
-                delta.Revision > knownRevision)
+            if (!this.IsChunkInRequestReachLocked(connectionId, chunkX, chunkY))
             {
-                packet = ChunkDeltaPacketMapper.ToPacket(delta, isEndOfStream: true);
-                return true;
+                this.NoteRefusedChunkRequestLocked(connectionId, chunkX, chunkY);
+                packet = null;
+                return false;
             }
 
-            packet = null;
+            return this.TryCreateChunkDeltaPacketLocked(chunkX, chunkY, knownRevision, out packet);
+        }
+    }
+
+    /// <summary>Reads a chunk's delta with no requester check, for tests that inspect the world from outside.</summary>
+    internal bool TryReadChunkDelta(int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet)
+    {
+        lock (_gate)
+        {
+            return this.TryCreateChunkDeltaPacketLocked(chunkX, chunkY, knownRevision, out packet);
+        }
+    }
+
+    // Audit SA-10: a player may request the chunks within ChunkRequestReach of its own chunk (Chebyshev distance).
+    private bool IsChunkInRequestReachLocked(ulong connectionId, int chunkX, int chunkY)
+    {
+        if (!_players.ByConnection.TryGetValue(connectionId, out PlayerState? state) ||
+            !_simulation.Entities.IsAlive(state.Entity) ||
+            !_simulation.Entities.HasTransform(state.Entity))
+        {
             return false;
         }
+
+        Vector2 pos = _simulation.Entities.GetTransform(state.Entity).Position;
+        int playerCx = Chunk2D.ToChunkCoord((int)MathF.Floor(pos.X / this.TileSize));
+        int playerCy = Chunk2D.ToChunkCoord((int)MathF.Floor(pos.Y / this.TileSize));
+        return Math.Abs((long)chunkX - playerCx) <= ChunkRequestReach && Math.Abs((long)chunkY - playerCy) <= ChunkRequestReach;
+    }
+
+    // One warning a minute at most, with the count since the last one, so a flood of bad requests cannot flood the log.
+    private void NoteRefusedChunkRequestLocked(ulong connectionId, int chunkX, int chunkY)
+    {
+        _refusedChunkRequests++;
+        if (_currentTick < _nextChunkRefusalLogTick || !_logger.IsEnabled(LogLevel.Warning))
+        {
+            return;
+        }
+
+        _logger.LogWarning(
+            "Refused {Count} chunk requests outside the requester's reach since the last report; latest from connection {ConnectionId} for chunk ({ChunkX}, {ChunkY}).",
+            _refusedChunkRequests,
+            connectionId,
+            chunkX,
+            chunkY);
+        _refusedChunkRequests = 0;
+        _nextChunkRefusalLogTick = _currentTick + (this.TickRate * 60UL);
+    }
+
+    private bool TryCreateChunkDeltaPacketLocked(int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet)
+    {
+        // A village chunk is never served before its buildings exist (ADR-025).
+        _settlements.EnsureVillageBuilt(chunkX, chunkY);
+        if (_chunkWorld.TryGetDelta(chunkX, chunkY, out ChunkDelta? delta) &&
+            delta is not null &&
+            !delta.IsEmpty &&
+            delta.Revision > knownRevision)
+        {
+            packet = ChunkDeltaPacketMapper.ToPacket(delta, isEndOfStream: true);
+            return true;
+        }
+
+        packet = null;
+        return false;
     }
 
     /// <summary>
@@ -314,6 +378,22 @@ public sealed partial class AuthoritativeWorld
         }
 
         return (offset, count);
+    }
+
+    // The line of sight a melee hit needs (CombatService.HasLineOfSight, one definition), to the nearest point of the
+    // tile: a prop on a solid tile cannot block the ray to itself.
+    private bool HasLineOfSightToTileLocked(Entity entity, int tileX, int tileY)
+    {
+        if (!_simulation.Entities.IsAlive(entity) || !_simulation.Entities.HasTransform(entity))
+        {
+            return false;
+        }
+
+        Vector2 pos = _simulation.Entities.GetTransform(entity).Position;
+        Vector2 nearest = new(
+            Math.Clamp(pos.X, tileX * this.TileSize, (tileX + 1) * this.TileSize),
+            Math.Clamp(pos.Y, tileY * this.TileSize, (tileY + 1) * this.TileSize));
+        return _combat.HasLineOfSight(pos, nearest);
     }
 
     private bool IsWithinInteractRangeLocked(Entity entity, int tileX, int tileY)

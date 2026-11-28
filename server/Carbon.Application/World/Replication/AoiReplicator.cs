@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using Carbon.Abstractions.World;
 using Carbon.Combat.Statuses;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.Networking;
 using Carbon.Simulation.World;
@@ -28,7 +29,8 @@ internal readonly record struct SpawnIdentity(
     byte WeaponUpgrade,
     LootCurrency LootCurrency = LootCurrency.None,
     ulong LootOwnerNetworkId = 0UL,
-    uint LootProtectionMs = 0U)
+    uint LootProtectionMs = 0U,
+    CharacterLook Look = default)
 {
     /// <summary>Gets the identity used for an entity the world knows nothing more about.</summary>
     public static SpawnIdentity Unknown { get; } = new(EntityKind.Player, "Adventurer", 0, 0, 0, 0, 0, 0, 1, 0, 0);
@@ -211,7 +213,8 @@ internal sealed class AoiReplicator
             id.WeaponUpgrade,
             id.LootCurrency,
             id.LootOwnerNetworkId,
-            id.LootProtectionMs);
+            id.LootProtectionMs,
+            id.Look);
         return true;
     }
 }

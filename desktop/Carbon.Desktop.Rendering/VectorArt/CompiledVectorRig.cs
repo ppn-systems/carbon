@@ -208,11 +208,15 @@ public readonly struct CompiledVectorShape
 public readonly struct CompiledKeyframe
 {
     /// <summary>Initializes a keyframe pose snapshot.</summary>
-    public CompiledKeyframe(float time, BonePose[] bones)
+    public CompiledKeyframe(float time, BonePose[] bones, KeyframeEase ease = KeyframeEase.InOut)
     {
         this.Time = time;
         this.Bones = bones;
+        this.Ease = ease;
     }
+
+    /// <summary>Easing of the segment from this key to the next.</summary>
+    public KeyframeEase Ease { get; }
 
     /// <summary>Normalized <c>[0..1]</c> keyframe timestamp.</summary>
     public float Time { get; }
@@ -355,6 +359,12 @@ public sealed class CompiledVectorRig
     /// <summary>Gets a value indicating whether the art catalog marks this monster rig as an elite variant.</summary>
     public bool IsElite { get; init; }
 
+    /// <summary>
+    /// Gets the horizontal scale the modular chest armor, pauldrons and cape use on this body (1 = the male human torso,
+    /// ADR-042 D11), so the same equipment fits every body rig of one skeleton.
+    /// </summary>
+    public float TorsoWidthScale { get; init; } = 1f;
+
     /// <summary>Gets the rig-local anchors for night eye-glow and the elite crown.</summary>
     public RigMarkers Markers { get; init; } = RigMarkers.Empty;
 
@@ -438,8 +448,8 @@ public sealed class CompiledVectorRig
             {
                 float span = MathF.Max(0.0001f, b.Time - a.Time);
                 float linearAlpha = Math.Clamp((normT - a.Time) / span, 0f, 1f);
-                // Smoothstep easing prevents robotic snapping on breathing and limb reversal.
-                float alpha = linearAlpha * linearAlpha * (3f - (2f * linearAlpha));
+                // Per-key easing (default smoothstep, which keeps breathing and limb reversal soft).
+                float alpha = KeyframeEasing.Apply(a.Ease, linearAlpha);
                 int count = Math.Min(outBones.Length, (int)VectorBoneId.Count);
                 for (int boneIdx = 0; boneIdx < count; boneIdx++)
                 {

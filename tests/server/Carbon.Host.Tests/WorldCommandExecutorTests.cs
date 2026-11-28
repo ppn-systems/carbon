@@ -1,6 +1,5 @@
 // Copyright (c) 2026 PPN Systems. All rights reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Carbon.Abstractions.World;
@@ -8,6 +7,7 @@ using Carbon.Application.World.Commands;
 using Carbon.Contracts.Common;
 using Carbon.Contracts.Entities;
 using Carbon.Maps.Building;
+using Carbon.Testing;
 using FluentAssertions;
 using Xunit;
 
@@ -24,13 +24,13 @@ public sealed class WorldCommandExecutorTests
         WorldCommandExecutor executor = new(handlers);
         WorldCommandQueue queue = new();
 
-        Task<WorldMutationOutcome> place = queue.Submit(WorldCommandKind.PlaceStructure, Connection, 3, -4, StructureType.WoodWall, StructureRotation.East).AsTask();
-        Task<WorldMutationOutcome> drop = queue.Submit(WorldCommandKind.DropInventoryItem, Connection, 7, arg2: 5, arg3: 13).AsTask();
-        Task<WorldMutationOutcome> split = queue.Submit(WorldCommandKind.SplitInventorySlot, Connection, 9, 10, 4, 21).AsTask();
-        Task<WorldMutationOutcome> sort = queue.Submit(WorldCommandKind.SortInventory, Connection, 0).AsTask();
-        Task<WorldMutationOutcome> destroy = queue.Submit(WorldCommandKind.DestroyInventoryItem, Connection, 11, arg2: -1, arg3: 22).AsTask();
-        Task<WorldMutationOutcome> rest = queue.Submit(WorldCommandKind.SetResting, Connection, 1).AsTask();
-        Task<WorldMutationOutcome> point = queue.Submit(WorldCommandKind.AllocateCharacterPoint, Connection, (ushort)PointAllocationKind.Skill, 12, 2).AsTask();
+        Task<WorldMutationOutcome> place = queue.SubmitAsync(WorldCommandKind.PlaceStructure, Connection, 3, -4, StructureType.WoodWall, StructureRotation.East).AsTask();
+        Task<WorldMutationOutcome> drop = queue.SubmitAsync(WorldCommandKind.DropInventoryItem, Connection, 7, arg2: 5, arg3: 13).AsTask();
+        Task<WorldMutationOutcome> split = queue.SubmitAsync(WorldCommandKind.SplitInventorySlot, Connection, 9, 10, 4, 21).AsTask();
+        Task<WorldMutationOutcome> sort = queue.SubmitAsync(WorldCommandKind.SortInventory, Connection, 0).AsTask();
+        Task<WorldMutationOutcome> destroy = queue.SubmitAsync(WorldCommandKind.DestroyInventoryItem, Connection, 11, arg2: -1, arg3: 22).AsTask();
+        Task<WorldMutationOutcome> rest = queue.SubmitAsync(WorldCommandKind.SetResting, Connection, 1).AsTask();
+        Task<WorldMutationOutcome> point = queue.SubmitAsync(WorldCommandKind.AllocateCharacterPoint, Connection, (ushort)PointAllocationKind.Skill, 12, 2).AsTask();
 
         executor.Drain(queue);
 
@@ -59,7 +59,7 @@ public sealed class WorldCommandExecutorTests
         WorldCommandExecutor executor = new(handlers);
         WorldCommandQueue queue = new();
 
-        Task<WorldMutationOutcome> upgrade = queue.Submit(WorldCommandKind.UpgradeInventoryItem, Connection, (ushort)4, (ushort)206).AsTask();
+        Task<WorldMutationOutcome> upgrade = queue.SubmitAsync(WorldCommandKind.UpgradeInventoryItem, Connection, (ushort)4, (ushort)206).AsTask();
         executor.Drain(queue);
 
         handlers.Calls.Should().Equal("UpgradeInventoryItem 42 4 206");
@@ -73,7 +73,7 @@ public sealed class WorldCommandExecutorTests
         WorldCommandExecutor executor = new(handlers);
         WorldCommandQueue queue = new();
 
-        Task<WorldMutationOutcome> repair = queue.Submit(WorldCommandKind.RepairItem, Connection, 37, 3, 4, (ushort)RepairVenue.Blacksmith).AsTask();
+        Task<WorldMutationOutcome> repair = queue.SubmitAsync(WorldCommandKind.RepairItem, Connection, 37, 3, 4, (ushort)RepairVenue.Blacksmith).AsTask();
         executor.Drain(queue);
 
         handlers.Calls.Should().Equal("RepairItem 42 37 3 4 Blacksmith");
@@ -85,15 +85,9 @@ public sealed class WorldCommandExecutorTests
     {
         WorldCommandExecutor executor = new(new RecordingHandlers());
         WorldCommandQueue queue = new();
-        executor.Drain(queue);
+        AllocationResult window = AllocationProbe.Measure(1_000, warmupIterations: 1_000, tick => executor.Drain(queue));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int tick = 0; tick < 1_000; tick++)
-        {
-            executor.Drain(queue);
-        }
-
-        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0, "the drain runs at the start of every fixed tick (AGENTS.md rule 4)");
+        window.Bytes.Should().Be(0, $"the drain runs at the start of every fixed tick (AGENTS.md rule 4) ({window})");
     }
 
     [Fact]
@@ -103,10 +97,10 @@ public sealed class WorldCommandExecutorTests
         WorldCommandExecutor executor = new(handlers);
         WorldCommandQueue queue = new();
 
-        Task<WorldMutationOutcome> sort = queue.Submit(WorldCommandKind.SortInventory, Connection, 0).AsTask();
-        Task<WorldMutationOutcome> harvest = queue.Submit(WorldCommandKind.HarvestProp, Connection, 3, -4, StructureType.None, StructureRotation.North).AsTask();
-        Task<WorldMutationOutcome> buy = queue.Submit(WorldCommandKind.CraftRecipe, Connection, 5, 1).AsTask();
-        Task<WorldMutationOutcome> respawn = queue.Submit(WorldCommandKind.Respawn, Connection, 0).AsTask();
+        Task<WorldMutationOutcome> sort = queue.SubmitAsync(WorldCommandKind.SortInventory, Connection, 0).AsTask();
+        Task<WorldMutationOutcome> harvest = queue.SubmitAsync(WorldCommandKind.HarvestProp, Connection, 3, -4, StructureType.None, StructureRotation.North).AsTask();
+        Task<WorldMutationOutcome> buy = queue.SubmitAsync(WorldCommandKind.CraftRecipe, Connection, 5, 1).AsTask();
+        Task<WorldMutationOutcome> respawn = queue.SubmitAsync(WorldCommandKind.Respawn, Connection, 0).AsTask();
         executor.Drain(queue);
 
         handlers.Calls.Should().Equal(["Respawn 42"], "a dead player can do nothing but ask to respawn (ADR-031)");

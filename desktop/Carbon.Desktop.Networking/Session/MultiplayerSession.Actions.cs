@@ -113,8 +113,8 @@ public sealed partial class MultiplayerSession
         }
 
         ActionAnimationKind actionKind = ResolveActionKind(archetype);
-        float actionDuration = ResolveActionDuration(actionKind);
-        _comboStep = (byte)(_comboStep ^ 1);
+        _comboStep = _combo.Next(actionKind, _comboClock);
+        float actionDuration = ResolveActionDuration(actionKind, _comboStep);
         _currentAction = new ActionState(
             actionKind,
             actionDuration,
@@ -123,7 +123,7 @@ public sealed partial class MultiplayerSession
             activeSlot.ItemId,
             _comboStep);
 
-        if (actionKind is ActionAnimationKind.SwordSlash or ActionAnimationKind.AxeChop or ActionAnimationKind.PickaxeMine or ActionAnimationKind.BowShot or ActionAnimationKind.StaffCast)
+        if (actionKind is ActionAnimationKind.Punch or ActionAnimationKind.SwordSlash or ActionAnimationKind.AxeChop or ActionAnimationKind.PickaxeMine or ActionAnimationKind.BowShot or ActionAnimationKind.StaffCast)
         {
             _attackSwingTimer = actionDuration;
         }
@@ -240,8 +240,8 @@ public sealed partial class MultiplayerSession
         _localFacingDir = aimDir;
 
         ActionAnimationKind actionKind = MapSkillAnimKind(skillDef.AnimArchetype);
-        float duration = ResolveActionDuration(actionKind);
-        _comboStep = (byte)(_comboStep ^ 1);
+        _comboStep = _combo.Next(actionKind, _comboClock);
+        float duration = ResolveActionDuration(actionKind, _comboStep);
 
         uint heldItemId;
         ulong targetNetId;
@@ -879,6 +879,21 @@ public sealed partial class MultiplayerSession
     }
 
     /// <inheritdoc/>
+    public void DrainStrikeImpactEvents(List<StrikeImpactEvent> destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        lock (_worldGate)
+        {
+            for (int i = 0; i < _strikeImpactEvents.Count; i++)
+            {
+                destination.Add(_strikeImpactEvents[i]);
+            }
+
+            _strikeImpactEvents.Clear();
+        }
+    }
+
+    /// <inheritdoc/>
     public void DrainPropImpactEvents(List<PropImpactEvent> destination)
     {
         ArgumentNullException.ThrowIfNull(destination);
@@ -992,8 +1007,8 @@ public sealed partial class MultiplayerSession
 
         _ = _items.Rules.Items.TryGet(activeSlot.ItemId, out ItemArchetype? activeArchetype);
         ActionAnimationKind harvestKind = ResolveActionKind(activeArchetype);
-        float harvestDuration = ResolveActionDuration(harvestKind);
-        _comboStep = (byte)(_comboStep ^ 1);
+        _comboStep = _combo.Next(harvestKind, _comboClock);
+        float harvestDuration = ResolveActionDuration(harvestKind, _comboStep);
         _attackSwingTimer = harvestDuration;
         _currentAction = new ActionState(
             harvestKind,
@@ -1068,11 +1083,15 @@ public sealed partial class MultiplayerSession
             });
     }
 
-    private static ActionAnimationKind ResolveActionKind(ItemArchetype? archetype)
+    /// <summary>
+    /// Gets the swing animation for the held item: a tool chops or mines, a bow or staff shoots, a melee weapon slashes,
+    /// and anything else (nothing held, a material, a piece of armour) is a punch.
+    /// </summary>
+    internal static ActionAnimationKind ResolveActionKind(ItemArchetype? archetype)
     {
         if (archetype is null)
         {
-            return ActionAnimationKind.SwordSlash;
+            return ActionAnimationKind.Punch;
         }
 
         if (archetype.Category == ItemCategory.Placeable)
@@ -1087,19 +1106,19 @@ public sealed partial class MultiplayerSession
 
         if (archetype.Category == ItemCategory.Tool)
         {
-            return archetype.Capabilities.HasFlag(ToolCapabilities.MineMineral)
+            return (archetype.Capabilities & ToolCapabilities.MineMineral) != 0
                 ? ActionAnimationKind.PickaxeMine
                 : ActionAnimationKind.AxeChop;
         }
 
         if (archetype.Category == ItemCategory.Weapon && archetype.ProjectileSpeed > 0f)
         {
-            return archetype.Capabilities.HasFlag(ToolCapabilities.MagicFocus)
+            return (archetype.Capabilities & ToolCapabilities.MagicFocus) != 0
                 ? ActionAnimationKind.StaffCast
                 : ActionAnimationKind.BowShot;
         }
 
-        return ActionAnimationKind.SwordSlash;
+        return archetype.Category == ItemCategory.Weapon ? ActionAnimationKind.SwordSlash : ActionAnimationKind.Punch;
     }
 
     private static ActionAnimationKind MapSkillAnimKind(SkillAnimArchetype anim) => anim switch
@@ -1109,7 +1128,17 @@ public sealed partial class MultiplayerSession
         SkillAnimArchetype.SelfAura or _ => ActionAnimationKind.SelfAura,
     };
 
-    private static float ResolveActionDuration(ActionAnimationKind kind) => kind switch
+    /// <summary>
+    /// Gets the local action length: a hero attack lasts its <see cref="HeroAttackTiming"/> (the clip and the server's
+    /// damage tick line up, <c>docs/art/combat-animation.md</c> §3.1); skills and other actions keep fixed lengths.
+    /// </summary>
+    internal static float ResolveActionDuration(ActionAnimationKind kind, byte comboStep)
+    {
+        HeroAttackTiming timing = HeroAttackTiming.For(HeroAttackTiming.StyleOf(kind, comboStep));
+        return timing.Total > 0f ? timing.Total : ResolveFixedActionDuration(kind);
+    }
+
+    private static float ResolveFixedActionDuration(ActionAnimationKind kind) => kind switch
     {
         ActionAnimationKind.AxeChop => 0.30f,
         ActionAnimationKind.PickaxeMine => 0.30f,
@@ -1125,6 +1154,7 @@ public sealed partial class MultiplayerSession
             or ActionAnimationKind.MonsterBowShot
             or ActionAnimationKind.MonsterSpellCast
             or ActionAnimationKind.MonsterHeavySlam
+            or ActionAnimationKind.Punch
             or ActionAnimationKind.None
             or _ => 0.24f,
     };

@@ -231,7 +231,7 @@ public sealed partial class AuthoritativeWorld
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitSetRestingAsync(ulong connectionId, bool rest) =>
-        _commands.Submit(WorldCommandKind.SetResting, connectionId, rest ? (ushort)1 : (ushort)0);
+        _commands.SubmitAsync(WorldCommandKind.SetResting, connectionId, rest ? (ushort)1 : (ushort)0);
 
     /// <summary>
     /// Starts resting (sleeping in a bed within reach, otherwise sitting) or stands the player up (ADR-018). Runs

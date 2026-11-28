@@ -27,7 +27,6 @@ using Carbon.Prediction.Remote;
 using Carbon.Simulation.ECS;
 using Carbon.Simulation.ECS.Components;
 using Carbon.Simulation.World;
-using Carbon.Survival.Stamina;
 using Nalix.Abstractions.Primitives;
 using Nalix.SDK.Transport;
 
@@ -48,17 +47,18 @@ public sealed partial class MultiplayerSession : IWorldSession
 
     private readonly DesktopOptions _options;
     private readonly SyncedItemCatalog _items = new();
+    private readonly SyncedRaceCatalog _races = new();
     private readonly EntityNameKeys _entityNames;
     private readonly List<IDisposable> _tcpSubscriptions = [];
     private readonly List<IDisposable> _udpSubscriptions = [];
     private readonly ConcurrentDictionary<ulong, RemoteEntityState> _remoteEntities = new();
-    private readonly ConcurrentDictionary<long, uint> _requestedChunks = new();
+    private readonly ChunkDeltaRequests _chunkRequests = new();
     private readonly ConcurrentDictionary<Guid, string> _characterNames = new();
-    private readonly ConcurrentDictionary<Guid, byte> _characterPresets = new();
     private readonly RemoteViewBuffer _remoteViewsA = new();
     private readonly RemoteViewBuffer _remoteViewsB = new();
     private readonly List<CombatFeedbackEvent> _combatEvents = new(32);
     private readonly List<PropImpactEvent> _propImpactEvents = new(16);
+    private readonly List<StrikeImpactEvent> _strikeImpactEvents = new(16);
     private readonly List<ItemBreakEvent> _itemBreakEvents = new(4);
     private readonly List<(int ChunkX, int ChunkY)> _dirtyChunks = new(16);
     private readonly List<string> _hudNotifications = new(16);
@@ -130,7 +130,6 @@ public sealed partial class MultiplayerSession : IWorldSession
     private uint _localXpToNext = 100U;
     private float _localMana = 80f;
     private float _localMaxMana = 80f;
-    private StaminaMeter _stamina = new(100f);
     private float _localMaxStamina = 100f;
     private float _localDefense = 2f;
     private long _localGold;
@@ -157,7 +156,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     private ushort _itemSeqId;
     private bool _wasMovingLastTick;
     private float _idleKeepAliveTimer;
-    private byte _localAppearancePreset;
+    private CharacterLook _localLook;
     private bool _inventoryLoaded;
     private Vector2 _localFacingDir = new(0f, 1f);
     private float _localHitFlashTimer;
@@ -166,6 +165,8 @@ public sealed partial class MultiplayerSession : IWorldSession
     private volatile StatusEffectCatalog _statusEffectDefinitions = StatusEffectCatalog.Empty;
     private ActionState _currentAction = ActionState.None;
     private byte _comboStep;
+    private AttackComboCounter _combo;
+    private float _comboClock;
     private ulong _lockedTargetNetworkId;
     private float _forgeFeedbackTimer;
     private bool _lastForgeSucceeded;
@@ -417,7 +418,7 @@ public sealed partial class MultiplayerSession : IWorldSession
             {
                 RemoteEntityState s = kvp.Value;
                 if (s.Kind == EntityKind.Npc &&
-                    WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
+                    (WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities & NpcCapabilities.ForgeArtisan) != 0 &&
                     Vector2.DistanceSquared(playerPos, s.Position) <= maxDistSq)
                 {
                     return true;
@@ -450,7 +451,7 @@ public sealed partial class MultiplayerSession : IWorldSession
                 {
                     RemoteEntityState s = kvp.Value;
                     if (s.Kind == EntityKind.Npc &&
-                        WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities.HasFlag(NpcCapabilities.ForgeArtisan) &&
+                        (WorldActorCatalog.GetNpcSpec(s.ArchetypeId).Capabilities & NpcCapabilities.ForgeArtisan) != 0 &&
                         Vector2.DistanceSquared(playerPos, s.Position) <= table.BlacksmithReach * table.BlacksmithReach)
                     {
                         return table.BlacksmithTier;
@@ -534,7 +535,9 @@ public sealed partial class MultiplayerSession : IWorldSession
                         s.ActiveActionKind,
                         s.BuildAttackView(),
                         s.LootCurrency,
-                        this.IsLootLockedForLocalPlayer(s)));
+                        this.IsLootLockedForLocalPlayer(s),
+                        s.ComboStep,
+                        s.Look));
                 }
 
                 _cachedRemoteViews = target;
@@ -561,7 +564,7 @@ public sealed partial class MultiplayerSession : IWorldSession
     public string ActiveCharacterName => _activeCharacterName;
 
     /// <inheritdoc/>
-    public byte LocalPlayerAppearancePreset => _localAppearancePreset;
+    public CharacterLook LocalPlayerLook => _localLook;
 
     /// <inheritdoc/>
     public string ConnectionLabel =>
@@ -637,6 +640,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         float fdt = (float)dt;
         this.MonitorConnectionHealth(fdt);
 
+        _comboClock += fdt;
         if (_attackSwingTimer > 0f)
         {
             _attackSwingTimer = MathF.Max(0f, _attackSwingTimer - fdt);
@@ -878,7 +882,7 @@ public sealed partial class MultiplayerSession : IWorldSession
         lock (_worldGate)
         {
             _remoteEntities.Clear();
-            _requestedChunks.Clear();
+            _chunkRequests.Reset();
             _combatEvents.Clear();
             _propImpactEvents.Clear();
             _itemBreakEvents.Clear();

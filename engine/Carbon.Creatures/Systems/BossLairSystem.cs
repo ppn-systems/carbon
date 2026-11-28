@@ -28,7 +28,9 @@ namespace Carbon.Creatures.Systems;
 /// <see cref="BossLairConfig.CombatGraceTicks"/> holds it.</item>
 /// </list>
 /// The boss is not a spawner monster: it takes no density-cell slot and is never picked from a spawn table. Lairs are
-/// looked up once per cell and cached. Runs in <see cref="SimulationPhase.PostUpdate"/>.
+/// looked up once per cell and cached while a player's scan reaches the cell. A cell no scan reaches is dropped once it
+/// holds nothing a fresh lookup would lose: no living boss and no running respawn timer (ALLOC-7). Runs in
+/// <see cref="SimulationPhase.PostUpdate"/>.
 /// </summary>
 public sealed class BossLairSystem : ISimulationSystem
 {
@@ -79,6 +81,9 @@ public sealed class BossLairSystem : ISimulationSystem
     /// <returns>The living boss, or <see cref="Entity.Null"/>.</returns>
     public Entity GetBoss(int cellX, int cellY) => _cells.TryGetValue((cellX, cellY), out Lair lair) ? lair.Boss : Entity.Null;
 
+    /// <summary>Gets the number of lair cells held: those near a player, plus lairs with a living boss or a running respawn timer.</summary>
+    public int CellCount => _cells.Count;
+
     /// <inheritdoc/>
     public void Update(WorldSimulation world, FixedTickArgs tick)
     {
@@ -108,6 +113,7 @@ public sealed class BossLairSystem : ISimulationSystem
                 for (int cx = minX; cx <= maxX; cx++)
                 {
                     ref Lair lair = ref this.LairAt(cx, cy);
+                    lair.ScanTick = now;
                     if (lair.Exists && Vector2.DistanceSquared(p, lair.Anchor) <= radiusSq)
                     {
                         lair.LastNearTick = now;
@@ -123,6 +129,13 @@ public sealed class BossLairSystem : ISimulationSystem
             if (lair.Exists)
             {
                 this.StepLair(world, ref lair, anchors[..anchorCount], now);
+            }
+
+            // Out of every scan, with no boss and no timer, the cell equals a fresh lookup: drop it. Removing the current
+            // entry during the enumeration is allowed and keeps it valid.
+            if (lair.ScanTick != now && !lair.Boss.IsValid && now >= lair.NextSpawnTick)
+            {
+                _ = _cells.Remove(pair.Key);
             }
         }
     }
@@ -233,5 +246,6 @@ public sealed class BossLairSystem : ISimulationSystem
         public ulong LastEngagedTick;
         public float LastHealth;
         public bool Near;
+        public ulong ScanTick;
     }
 }

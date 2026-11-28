@@ -131,12 +131,12 @@ public static class ToolUsagePolicy
             return new PropStrikeEvaluation(12f * upgradeMult, 1, 4.5f, ToolStrikeOutcome.SwordMisuseOnWood);
         }
 
-        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Mineral && !def.Capabilities.HasFlag(ToolCapabilities.MineMineral))
+        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Mineral && (def.Capabilities & ToolCapabilities.MineMineral) == 0)
         {
             return new PropStrikeEvaluation(0f, 0, 4.0f, ToolStrikeOutcome.BladeBluntOnStone);
         }
 
-        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Flora && def.Capabilities.HasFlag(ToolCapabilities.MineMineral) && !def.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
+        if (def is { Category: ItemCategory.Tool } && targetKind == ToolTargetKind.Flora && (def.Capabilities & ToolCapabilities.MineMineral) != 0 && (def.Capabilities & ToolCapabilities.ChopFlora) == 0)
         {
             float pickOnWoodDmg = def.FloraHarvestDamage * 0.72f * upgradeMult;
             if (def.HarvestTier < propRequiredTier)
@@ -186,12 +186,12 @@ public static class ToolUsagePolicy
             return new PropStrikeEvaluation(bareHandDamage, 0, 4.5f, ToolStrikeOutcome.SwordMisuseOnWood);
         }
 
-        if (def.Capabilities.HasFlag(ToolCapabilities.MineMineral))
+        if ((def.Capabilities & ToolCapabilities.MineMineral) != 0)
         {
             return new PropStrikeEvaluation(MathF.Max(bareHandDamage, rules.GetMineralHarvestDamage(slot.ItemId) * upgradeMult), def.HarvestTier, wear, ToolStrikeOutcome.Optimal);
         }
 
-        if (def.Capabilities.HasFlag(ToolCapabilities.ChopFlora))
+        if ((def.Capabilities & ToolCapabilities.ChopFlora) != 0)
         {
             return new PropStrikeEvaluation(MathF.Max(bareHandDamage, rules.GetFloraHarvestDamage(slot.ItemId) * axeEfficiency * upgradeMult), def.HarvestTier, wear, ToolStrikeOutcome.Optimal);
         }

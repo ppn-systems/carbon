@@ -9,6 +9,7 @@ using Carbon.Maps.Generators;
 using Carbon.Maps.Networking;
 using Carbon.Maps.Props;
 using Carbon.Maps.Streaming;
+using Carbon.Testing;
 using Xunit;
 
 namespace Carbon.Maps.Tests;
@@ -204,13 +205,13 @@ public sealed class TreeGrowthTests
 
         ulong saplingEnd = stumpEnd + s_rules.Trees.StageTicks(TreeGrowthStage.Sapling, TickRate);
         changed.Clear();
-        long before = GC.GetAllocatedBytesForCurrentThread();
+        AllocationWindow open = AllocationProbe.Start();
         int grown = world.ProcessPropRespawns(saplingEnd, s_rules, TickRate, nobody, nobody, changed);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        AllocationResult window = open.Stop(1);
 
         Assert.Equal(1, grown);
         Assert.Equal(TreeGrowthStage.Young, changed[0].Stage);
-        Assert.Equal(0L, allocated);
+        Assert.True(window.Bytes == 0, window.ToString());
     }
 
     private static int Grow(ChunkWorld2D world, ulong tick) => world.ProcessPropRespawns(tick, s_rules, TickRate, null, null, null);

@@ -125,10 +125,10 @@ public sealed class LoginFlowTests : IDisposable
     }
 
     [Fact]
-    public void LoginFormTab_CyclesUsernamePasswordRememberMeLogin()
+    public void LoginFormTab_CyclesUsernamePasswordShowPasswordRememberMeLogin()
     {
         LoginForm form = new();
-        LoginFocus[] seen = new LoginFocus[5];
+        LoginFocus[] seen = new LoginFocus[6];
 
         for (int i = 0; i < seen.Length; i++)
         {
@@ -136,17 +136,17 @@ public sealed class LoginFlowTests : IDisposable
             form.Tab(reverse: false);
         }
 
-        seen.Should().Equal([LoginFocus.Username, LoginFocus.Password, LoginFocus.RememberMe, LoginFocus.Submit, LoginFocus.Username], "Tab moves username → password → checkbox → Login and wraps");
+        seen.Should().Equal([LoginFocus.Username, LoginFocus.Password, LoginFocus.ShowPassword, LoginFocus.RememberMe, LoginFocus.Submit, LoginFocus.Username], "Tab moves username → password → show-password eye → checkbox → Login and wraps");
         form.Focus = LoginFocus.Username;
         form.Tab(reverse: true);
         form.Focus.Should().Be(LoginFocus.Submit, "Shift+Tab walks backwards");
     }
 
     [Fact]
-    public void RegisterFormTab_CyclesUsernamePasswordConfirmRegister()
+    public void RegisterFormTab_CyclesUsernamePasswordShowPasswordConfirmRegister()
     {
         RegisterForm form = new();
-        RegisterFocus[] seen = new RegisterFocus[4];
+        RegisterFocus[] seen = new RegisterFocus[5];
 
         for (int i = 0; i < seen.Length; i++)
         {
@@ -154,7 +154,7 @@ public sealed class LoginFlowTests : IDisposable
             form.Tab(reverse: false);
         }
 
-        seen.Should().Equal([RegisterFocus.Username, RegisterFocus.Password, RegisterFocus.Confirm, RegisterFocus.Submit]);
+        seen.Should().Equal([RegisterFocus.Username, RegisterFocus.Password, RegisterFocus.ShowPassword, RegisterFocus.Confirm, RegisterFocus.Submit]);
     }
 
     [Fact]
@@ -239,7 +239,8 @@ public sealed class LoginFlowTests : IDisposable
                 new Pbkdf2PasswordHasher(),
                 rememberTokens: new SqliteRememberTokenStore(dbFactory));
             SessionTransportRegistry transportRegistry = new();
-            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance);
+            using PacketPool outboundPackets = new();
+            WorldOutboundSink outboundSink = new(transportRegistry, NullLogger<WorldOutboundSink>.Instance, outboundPackets);
             HostRuntimeOptions hostOptions = new() { WorldSeed = 1337UL, TileSize = 32f, Frequency = 0.0008f, TickRate = 30, WebSocketPort = 0, TcpPort = tcpPort, UdpPort = udpPort };
             AuthoritativeWorld world = new(
                 hostOptions.WorldSeed,

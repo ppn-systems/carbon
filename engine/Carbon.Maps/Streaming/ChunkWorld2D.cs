@@ -58,6 +58,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// </summary>
     public ProceduralWorldGenerator Generator => _generator;
 
+    /// <summary>Gets the lock guarding chunk and delta changes (tests: background builds never take it, ADR-045 D9).</summary>
+    internal Lock Gate => _gate;
+
     /// <summary>
     /// Gets the physical dimension of each tile in world units.
     /// </summary>
@@ -90,6 +93,9 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// </summary>
     public (int X, int Y) SpawnTile => _spawn.Value;
 
+    /// <summary>ADR-045 D1 <c>K</c>: chunks beyond the load radius whose road sites are planned ahead (one step's travel).</summary>
+    internal const int RoadPrewarmMarginChunks = 1;
+
     /// <summary>
     /// Gets a zero-allocation read-only span of currently resident active chunks.
     /// </summary>
@@ -100,10 +106,23 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     /// </summary>
     public int LoadedChunkCount => _streamer.ActiveCount;
 
+    /// <summary>Gets the number of resident snapshots the streamer has built (tests: one per streaming step).</summary>
+    internal int SnapshotBuilds => _streamer.SnapshotBuilds;
+
     /// <summary>
     /// Gets the count of idle recycled chunks currently held in the object pool.
     /// </summary>
     public int PooledChunkCount => _streamer.PooledCount;
+
+    /// <summary>
+    /// Raised with a chunk's packed key (<see cref="Chunk2D.PackKey"/>) when <see cref="UpdateAroundPosition"/> evicts it,
+    /// on the streaming thread and under the chunk lock, so per-chunk caches can end with the chunk (ALLOC-7).
+    /// </summary>
+    public event Action<long>? ChunkEvicted
+    {
+        add => _streamer.Evicted += value;
+        remove => _streamer.Evicted -= value;
+    }
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ChunkWorld2D"/> class.
@@ -222,9 +241,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0)
             {
@@ -270,9 +290,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0)
             {
@@ -331,9 +352,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0)
             {
@@ -496,9 +518,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int cy = Chunk2D.ToChunkCoord(worldTileY);
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             int index = chunk.FindPropIndexAt(lx, ly);
             if (index < 0 || !MapProp.IsTree(chunk.Props[index].Type))
             {
@@ -533,9 +556,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int cy = Chunk2D.ToChunkCoord(worldTileY);
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             planted = default;
             MapTile tile = chunk.GetTile(lx, ly);
             // Water biomes grow no trees, so the biome check also refuses water.
@@ -598,51 +622,6 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         prop.GrowthStage is TreeGrowthStage.Stump or TreeGrowthStage.Sapling;
 
     /// <summary>
-    /// Schedules the respawn of every destroyed prop read from a storage row older than format 4 (which kept no timers;
-    /// see <see cref="ChunkDelta.HasUnscheduledLegacyRespawns"/>). Each such chunk is generated once to learn the prop types.
-    /// Cold path: run once after loading the deltas.
-    /// </summary>
-    /// <param name="delayTicks">Ticks until a destroyed prop of a type on a world tile comes back (0 = never).</param>
-    /// <param name="currentTick">Current simulation tick.</param>
-    /// <param name="rescheduledChunks">Receives the packed key of every chunk that changed, so it can be saved again.</param>
-    /// <returns>The number of props scheduled.</returns>
-    public int ScheduleLegacyRespawns(Func<MapPropType, int, int, ulong> delayTicks, ulong currentTick, ICollection<long> rescheduledChunks)
-    {
-        ArgumentNullException.ThrowIfNull(delayTicks);
-        ArgumentNullException.ThrowIfNull(rescheduledChunks);
-        int scheduled = 0;
-        ReadOnlySpan<ChunkDelta> all = _deltas.All;
-        for (int i = 0; i < all.Length; i++)
-        {
-            ChunkDelta delta = all[i];
-            if (!delta.HasUnscheduledLegacyRespawns)
-            {
-                continue;
-            }
-
-            Chunk2D chunk = this.GetOrCreateChunk(delta.ChunkX, delta.ChunkY);
-            int baseTx = delta.ChunkX * Chunk2D.Size;
-            int baseTy = delta.ChunkY * Chunk2D.Size;
-            lock (_gate)
-            {
-                scheduled += delta.ScheduleLegacyRespawns(
-                    key =>
-                    {
-                        int lx = key & Chunk2D.SizeMask;
-                        int ly = key >> Chunk2D.SizeBits;
-                        int index = chunk.FindPropIndexAt(lx, ly);
-                        return index >= 0 ? delayTicks(chunk.Props[index].Type, baseTx + lx, baseTy + ly) : 0UL;
-                    },
-                    currentTick);
-            }
-
-            rescheduledChunks.Add(delta.Key);
-        }
-
-        return scheduled;
-    }
-
-    /// <summary>
     /// Reads the terrain tile at a world tile coordinate WITHOUT loading or generating a chunk.
     /// Resident chunks are read directly; otherwise the recorded delta or the pure seed sample is used.
     /// Allocation-free, intended for collision and navigation hot paths.
@@ -675,14 +654,24 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public bool TryGetChunk(int chunkX, int chunkY, out Chunk2D? chunk) =>
         _streamer.TryGet(chunkX, chunkY, out chunk);
 
+    /// <summary>Releases what <paramref name="stream"/> kept cached or resident (a player left the world).</summary>
+    /// <param name="stream">The stream passed to <see cref="UpdateAroundPosition"/>.</param>
+    public void ReleaseStream(ulong stream)
+    {
+        _streamer.Release(stream);
+        _generator.ReleaseStream(stream);
+    }
+
     /// <summary>
     /// Streams and loads all chunks within <paramref name="chunkRadius"/> around the target world position,
-    /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool.
+    /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool, unless another
+    /// <paramref name="stream"/> (player) still keeps them within its own eviction radius.
     /// </summary>
     /// <param name="centerWorldPos">Target center world coordinates (e.g. camera or player).</param>
     /// <param name="chunkRadius">Active load radius in chunks (e.g. 4 chunks = 9x9 active grid).</param>
     /// <param name="evictionRadius">Distance in chunks beyond which inactive chunks are recycled into the pool (e.g. 7 chunks).</param>
-    public void UpdateAroundPosition(Vector2 centerWorldPos, int chunkRadius = 4, int evictionRadius = 7)
+    /// <param name="stream">Who is streaming: one per player on the server (its connection), 0 on the client.</param>
+    public void UpdateAroundPosition(Vector2 centerWorldPos, int chunkRadius = 4, int evictionRadius = 7, ulong stream = 0)
     {
         float chunkSizeWorld = Chunk2D.Size * _tileSize;
         int centerChunkX = (int)MathF.Floor(centerWorldPos.X / chunkSizeWorld);
@@ -692,10 +681,36 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         _generator.PrewarmHydrology(
             (centerChunkX * Chunk2D.Size) + (Chunk2D.Size / 2),
             (centerChunkY * Chunk2D.Size) + (Chunk2D.Size / 2),
-            (chunkRadius + 8) * Chunk2D.Size);
+            (chunkRadius + 8) * Chunk2D.Size,
+            stream);
+
+        // 0b. ADR-045 D1: plan, in the background, the road sites of the loaded chunks and of a one-chunk margin, so the
+        // chunks the next step loads (a player moves at most one chunk per step) find their sites queued a step ahead.
+        (int roadMinX, int roadMinY, int roadMaxX, int roadMaxY) = RoadPrewarmTiles(centerChunkX, centerChunkY, chunkRadius);
+        _generator.PrewarmRoads(roadMinX, roadMinY, roadMaxX, roadMaxY, stream);
 
         // 1. Load the chunks in range; recycle those far away (their edits stay in the delta store).
-        _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius);
+        // A chunk another stream (player) still keeps is not evicted by this one.
+        _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius, stream);
+    }
+
+    /// <summary>
+    /// The tile rectangle whose road sites <see cref="UpdateAroundPosition"/> plans ahead (ADR-045 D1): the load radius
+    /// plus <see cref="RoadPrewarmMarginChunks"/>. Without the margin, a step that crosses a road site boundary loads edge
+    /// chunks whose query reads a site row the previous step never queued.
+    /// </summary>
+    /// <param name="centerChunkX">Centre chunk X.</param>
+    /// <param name="centerChunkY">Centre chunk Y.</param>
+    /// <param name="chunkRadius">Load radius in chunks.</param>
+    /// <returns>The inclusive tile rectangle.</returns>
+    internal static (int MinX, int MinY, int MaxX, int MaxY) RoadPrewarmTiles(int centerChunkX, int centerChunkY, int chunkRadius)
+    {
+        int reach = chunkRadius + RoadPrewarmMarginChunks;
+        return (
+            (centerChunkX - reach) * Chunk2D.Size,
+            (centerChunkY - reach) * Chunk2D.Size,
+            ((centerChunkX + reach + 1) * Chunk2D.Size) - 1,
+            ((centerChunkY + reach + 1) * Chunk2D.Size) - 1);
     }
 
     /// <summary>
@@ -722,9 +737,10 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         int lx = Chunk2D.ToLocalCoord(worldTileX);
         int ly = Chunk2D.ToLocalCoord(worldTileY);
 
-        Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
         lock (_gate)
         {
+            // TS-6: looked up under the lock, which eviction and recycling also take, so it is the chunk of (cx, cy).
+            Chunk2D chunk = this.GetOrCreateChunk(cx, cy);
             chunk.SetTile(lx, ly, tile);
             _deltas.GetOrAdd(cx, cy).SetTile(lx, ly, tile);
         }

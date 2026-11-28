@@ -193,7 +193,10 @@ public static class TextLayoutEngine
             return;
         }
 
-        Vector2 scaleVector = new(scale, scale);
+        // A font re-baked for a UI scale draws each texel at 1/TexelsPerUnit layout units: one screen pixel.
+        float texelsPerUnit = atlas.TexelsPerUnit;
+        float glyphScale = scale / texelsPerUnit;
+        Vector2 scaleVector = new(glyphScale, glyphScale);
         float scaledLineStep = (metrics.LineHeight + options.LineSpacing) * scale;
         float scaledSpace = metrics.SpaceWidth * scale;
         float scaledTab = metrics.TabWidth * scale;
@@ -342,6 +345,13 @@ public static class TextLayoutEngine
                     Vector2 glyphPos = new(
                         position.X + cursorX + (glyph.XOffset * scale),
                         currentLineY + (glyph.YOffset * scale));
+                    if (texelsPerUnit != 1f)
+                    {
+                        // Drawn under a projection of TexelsPerUnit pixels per unit: start every glyph on a whole pixel.
+                        glyphPos = new Vector2(
+                            MathF.Round(glyphPos.X * texelsPerUnit) / texelsPerUnit,
+                            MathF.Round(glyphPos.Y * texelsPerUnit) / texelsPerUnit);
+                    }
 
                     spriteBatch.Draw(
                         atlas.Texture,

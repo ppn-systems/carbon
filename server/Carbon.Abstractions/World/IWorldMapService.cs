@@ -11,8 +11,18 @@ namespace Carbon.Abstractions.World;
 /// </summary>
 public interface IWorldMapService
 {
-    /// <summary>Builds a thread-safe wire delta packet snapshot for the requested chunk when its revision exceeds <paramref name="knownRevision"/>.</summary>
-    bool TryCreateChunkDeltaPacket(int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet);
+    /// <summary>
+    /// Builds a thread-safe wire delta packet snapshot for the requested chunk when its revision exceeds
+    /// <paramref name="knownRevision"/>. Only chunks near the requester's player are served (audit SA-10): a request from a
+    /// connection with no player in the world, or for a chunk beyond its reach, is refused with no packet and no work.
+    /// </summary>
+    /// <param name="connectionId">The requesting connection.</param>
+    /// <param name="chunkX">Chunk X.</param>
+    /// <param name="chunkY">Chunk Y.</param>
+    /// <param name="knownRevision">The client's cached revision of the chunk.</param>
+    /// <param name="packet">The delta snapshot, when one is served.</param>
+    /// <returns>Whether a newer delta was served.</returns>
+    bool TryCreateChunkDeltaPacket(ulong connectionId, int chunkX, int chunkY, uint knownRevision, out MapChunkDelta? packet);
 
     /// <summary>
     /// Queues a harvest of the natural prop on the tile; completes after the next tick has processed it (ADR-017).

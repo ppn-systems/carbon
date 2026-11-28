@@ -2,6 +2,7 @@
 
 using System.Numerics;
 using Carbon.Contracts.Entities;
+using Carbon.Contracts.Identity;
 
 namespace Carbon.Desktop.Abstractions.World;
 
@@ -16,7 +17,7 @@ namespace Carbon.Desktop.Abstractions.World;
 /// <param name="Radius">Collider radius in world units.</param>
 /// <param name="CurrentHealth">Current health points.</param>
 /// <param name="MaxHealth">Maximum health points.</param>
-/// <param name="ArchetypeId">Visual archetype or character appearance preset ID.</param>
+/// <param name="ArchetypeId">Monster, NPC or item archetype ID (0 for players).</param>
 /// <param name="FacingDirection">Normalized facing direction vector.</param>
 /// <param name="AttackAnimRemaining">Remaining attack animation seconds (&gt; 0 while attacking).</param>
 /// <param name="AttackAnimDuration">Total attack animation duration in seconds.</param>
@@ -33,6 +34,8 @@ namespace Carbon.Desktop.Abstractions.World;
 /// <param name="Attack">Server-announced monster attack phase (inactive by default).</param>
 /// <param name="LootCurrency">For a ground loot drop: an item stack, or a gold or diamond pile of <c>LootCount</c> (ADR-019).</param>
 /// <param name="IsLootLocked">Whether a ground loot drop is still reserved for another player (ADR-019).</param>
+/// <param name="ComboStep">Combo step of the current swing (see <see cref="AttackComboCounter"/>).</param>
+/// <param name="Look">A player's race, body type and option choices (ADR-042); default for other kinds.</param>
 public readonly record struct RemoteEntityView(
     ulong NetworkId,
     EntityKind Kind,
@@ -58,4 +61,6 @@ public readonly record struct RemoteEntityView(
     ActionAnimationKind ActiveActionKind = ActionAnimationKind.None,
     AttackPhaseView Attack = default,
     LootCurrency LootCurrency = LootCurrency.None,
-    bool IsLootLocked = false);
+    bool IsLootLocked = false,
+    byte ComboStep = 0,
+    CharacterLook Look = default);

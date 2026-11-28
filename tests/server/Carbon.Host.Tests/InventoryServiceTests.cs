@@ -246,7 +246,7 @@ public sealed class InventoryServiceTests
 
             ConnectedPlayerSession session = new(9UL, Guid.NewGuid(), Guid.NewGuid(), "Tester", 900UL, 0, 0);
             CharacterRecord character = new(
-                session.CharacterId, session.AccountId, "Tester", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+                session.CharacterId, session.AccountId, "Tester", 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
             this.Player = new PlayerState(
                 session,
                 this.Simulation.SpawnNetworkEntity(session.PlayerNetworkId, Vector2.Zero, 7f),

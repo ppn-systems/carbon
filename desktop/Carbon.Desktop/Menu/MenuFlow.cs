@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using Carbon.Desktop.Abstractions.Configuration;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Session;
+using Carbon.Desktop.Rendering.Hud;
+using Carbon.Desktop.Rendering.UiSkin;
 using Carbon.Graphics.Batching.Camera;
 
 namespace Carbon.Desktop.Menu;
@@ -14,14 +16,17 @@ namespace Carbon.Desktop.Menu;
 /// </summary>
 internal sealed class MenuFlow
 {
-    public MenuFlow(IWorldSession session, DesktopOptions options, Camera2D camera, IRememberedAccountStore accounts, ServerDirectory servers)
+    public MenuFlow(IWorldSession session, DesktopOptions options, Camera2D camera, IRememberedAccountStore accounts, ServerDirectory servers, IServerProbe? probe = null, Func<float?>? readUiScaleChoice = null)
     {
+        this.Probe = probe ?? new TcpServerProbe();
+        this.Ui = new UiScaleState(readUiScaleChoice ?? (static () => null));
         this.Session = session ?? throw new ArgumentNullException(nameof(session));
         this.Options = options ?? throw new ArgumentNullException(nameof(options));
         this.Camera = camera ?? throw new ArgumentNullException(nameof(camera));
         this.Accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         this.Servers = servers ?? throw new ArgumentNullException(nameof(servers));
         this.SelectedServer = servers.Find(options.ServerHost, options.ServerTcpPort) ?? servers.Servers[0];
+        this.Backdrop = new MenuBackdrop(options.Seed, options.MenuMotion, session.TryCreateWorldGenerator);
     }
 
     public IWorldSession Session { get; }
@@ -34,12 +39,24 @@ internal sealed class MenuFlow
 
     public ServerDirectory Servers { get; }
 
+    /// <summary>Gets the reachability check the Server screen runs once per visit.</summary>
+    public IServerProbe Probe { get; }
+
+    /// <summary>
+    /// Gets the UI scale the menus and the in-game HUD share: one choice, one scale and one font cache. Each menu screen
+    /// re-reads the saved choice once when it loads.
+    /// </summary>
+    public UiScaleState Ui { get; }
+
+    /// <summary>Gets the living world behind the menus; shared so it keeps panning across screen changes.</summary>
+    public MenuBackdrop Backdrop { get; }
+
     /// <summary>Gets or sets the server Login, Register and Continue connect to.</summary>
     public GameServer SelectedServer { get; set; }
 
     /// <summary>Creates the flow for the real client: the account file and shipped server list from <paramref name="options"/>.</summary>
     public static MenuFlow Create(IWorldSession session, DesktopOptions options, Camera2D camera) =>
-        new(session, options, camera, new FileRememberedAccountStore(options.AccountFile), ServerDirectory.Load(options));
+        new(session, options, camera, new FileRememberedAccountStore(options.AccountFile), ServerDirectory.Load(options), readUiScaleChoice: static () => UiSettings.LoadOrDefault().UiScaleChoice);
 
     /// <summary>
     /// After a password sign-in with "Remember me": asks the server for a token and keeps it with the username and server.

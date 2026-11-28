@@ -19,8 +19,10 @@ namespace Carbon.Graphics.Batching.Geometry;
 /// </summary>
 public sealed class GeometryBatch : IDisposable
 {
-    private const int MAX_VERTICES = 16384;
-    private const int MAX_INDICES = 32768;
+    // Sized for a dense forest view (trees, canopies, shadows and weather in one world batch) so the batch does not
+    // split into extra draw calls. Flushes replace the buffers at the size in use, so capacity costs no upload time.
+    private const int MAX_VERTICES = 32768;
+    private const int MAX_INDICES = 65536;
 
     private readonly IGraphicsDevice _device;
     private readonly GlStateCache _stateCache;
@@ -240,6 +242,44 @@ public sealed class GeometryBatch : IDisposable
     }
 
     /// <summary>
+    /// Draws a filled circle whose colour blends from <paramref name="innerColor"/> at the centre to
+    /// <paramref name="outerColor"/> at the rim (soft lights, glows and contact shadows in a single fan).
+    /// </summary>
+    /// <param name="center">Circle center in world space.</param>
+    /// <param name="radius">Circle radius.</param>
+    /// <param name="innerColor">Colour at the centre.</param>
+    /// <param name="outerColor">Colour at the rim (usually the same colour with zero alpha).</param>
+    /// <param name="segments">Number of triangle segments.</param>
+    /// <param name="scaleY">Vertical scale of the circle (below 1 for ground ellipses seen at an angle).</param>
+    /// <param name="depth">Depth coordinate.</param>
+    public void FillRadialGradient(Vector2 center, float radius, ColorRgba innerColor, ColorRgba outerColor, int segments = 24, float scaleY = 1f, float depth = 0f)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(segments, 3, nameof(segments));
+
+        this.EnsureCapacity(segments + 1, segments * 3);
+
+        uint rimColor = outerColor.PackedValue;
+        uint centerIndex = (uint)_vertexCount;
+        _vertices[_vertexCount++] = new VertexColor(center.X, center.Y, depth, innerColor.PackedValue);
+
+        float angleStep = MathF.PI * 2.0f / segments;
+        uint firstPerimeterIndex = (uint)_vertexCount;
+        for (int i = 0; i < segments; i++)
+        {
+            float angle = i * angleStep;
+            _vertices[_vertexCount++] = new VertexColor(center.X + (MathF.Cos(angle) * radius), center.Y + (MathF.Sin(angle) * radius * scaleY), depth, rimColor);
+        }
+
+        for (uint i = 0; i < (uint)segments; i++)
+        {
+            uint next = (i + 1) % (uint)segments;
+            _indices[_indexCount++] = centerIndex;
+            _indices[_indexCount++] = firstPerimeterIndex + i;
+            _indices[_indexCount++] = firstPerimeterIndex + next;
+        }
+    }
+
+    /// <summary>
     /// Draws a solid filled convex polygon (e.g. procedural biome or cavern polygon).
     /// </summary>
     /// <param name="points">Span of 2D convex polygon vertices in clockwise or counter-clockwise order.</param>
@@ -291,8 +331,8 @@ public sealed class GeometryBatch : IDisposable
         _stateCache.SetDepthStencilState(DepthStencilState.None);
         _vao.Bind();
 
-        _vbo.SetData(_vertices.AsSpan(0, _vertexCount), 0, discardBuffer: true);
-        _ebo.SetData(_indices.AsSpan(0, _indexCount), 0, discardBuffer: true);
+        _vbo.ReplaceData(_vertices.AsSpan(0, _vertexCount));
+        _ebo.ReplaceData(_indices.AsSpan(0, _indexCount));
 
         _device.DrawElements(PrimitiveType.Triangles, (uint)_indexCount, DrawElementsType.UnsignedInt);
 

@@ -16,6 +16,7 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
     private readonly GL _gl;
     private readonly GlStateCache _stateCache;
     private bool _disposed;
+    private nuint _storeBytes;
 
     /// <inheritdoc/>
     public uint Handle { get; }
@@ -53,6 +54,7 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
 
         BufferUsageARB glUsage = ResolveGlUsage(usage);
         _gl.BufferData(BufferTargetARB.ArrayBuffer, capacity * this.Stride, null, glUsage);
+        _storeBytes = capacity * this.Stride;
     }
 
     /// <inheritdoc/>
@@ -88,13 +90,52 @@ public sealed class VertexBuffer<TVertex> : IVertexBuffer where TVertex : unmana
         {
             BufferUsageARB glUsage = ResolveGlUsage(this.Usage);
             _gl.BufferData(BufferTargetARB.ArrayBuffer, this.VertexCount * this.Stride, null, glUsage);
+            _storeBytes = this.VertexCount * this.Stride;
         }
 
         fixed (TVertex* ptr = vertices)
         {
             nuint sizeBytes = (nuint)(vertices.Length * sizeof(TVertex));
             nint offsetBytes = (nint)(offsetVertices * sizeof(TVertex));
+            EnsureStoreHolds(_storeBytes, (nuint)offsetBytes + sizeBytes);
             _gl.BufferSubData(BufferTargetARB.ArrayBuffer, offsetBytes, sizeBytes, ptr);
+        }
+    }
+
+    /// <summary>
+    /// Replaces the whole buffer with <paramref name="vertices"/>: the store is orphaned at their size and uploaded in
+    /// one call, so a buffer filled and drawn once per flush (a geometry batch) never pays for its unused capacity.
+    /// A later partial <see cref="SetData"/> must stay inside these vertices.
+    /// </summary>
+    /// <param name="vertices">The new contents.</param>
+    public unsafe void ReplaceData(ReadOnlySpan<TVertex> vertices)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (vertices.IsEmpty)
+        {
+            return;
+        }
+
+        if ((uint)vertices.Length > this.VertexCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(vertices), "Vertex data exceeds buffer capacity.");
+        }
+
+        this.Bind();
+        fixed (TVertex* ptr = vertices)
+        {
+            nuint sizeBytes = (nuint)(vertices.Length * sizeof(TVertex));
+            _gl.BufferData(BufferTargetARB.ArrayBuffer, sizeBytes, ptr, ResolveGlUsage(this.Usage));
+            _storeBytes = sizeBytes;
+        }
+    }
+
+    // ReplaceData sizes the store to its data; a later partial upload must stay inside it. to its data; a later partial upload must stay inside it.
+    private static void EnsureStoreHolds(nuint storeBytes, nuint endBytes)
+    {
+        if (endBytes > storeBytes)
+        {
+            throw new InvalidOperationException("A partial upload reaches past the data of the last ReplaceData; replace the whole buffer or upload with discardBuffer.");
         }
     }
 

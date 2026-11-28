@@ -40,7 +40,7 @@ public sealed class SavedToolCompatibilityTests
             oldBag.SetSlot(0, new ItemSlot(1U, 1, 0, 120f));
             oldBag.SetSlot(1, new ItemSlot(2U, 1, 0, 160f));
             CharacterRecord veteran = new(
-                Guid.NewGuid(), accountId, "Veteran", 3, 0, 0f, 0f, 100f, 100f, 0, InventoryBinaryCodec.Serialize(oldBag), DateTimeOffset.UnixEpoch);
+                Guid.NewGuid(), accountId, "Veteran", 3, default, 0f, 0f, 100f, 100f, 0, InventoryBinaryCodec.Serialize(oldBag), DateTimeOffset.UnixEpoch);
             (await characters.TryCreateAsync(veteran).ConfigureAwait(true)).Should().BeTrue();
 
             AuthoritativeWorld world = new(

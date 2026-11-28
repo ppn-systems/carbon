@@ -19,6 +19,8 @@ Tests reside under `tests/` and cover `contracts/`, `engine/`, `server/`, and `a
   - Use FluentAssertions with meaningful failure messages (`result.Should().BeTrue("player should be alive after taking partial damage")`).
 - **Zero Warnings**:
   - Test projects must compile cleanly with zero warnings under `TreatWarningsAsErrors`.
+- **Zero-Allocation Guards Are Release-Only**:
+  - Measure with `AllocationProbe` (`tests/Shared/AllocationProbe.cs`) and run guards with `-c Release`, as CI and `tools/ci/verify.sh` do. Unoptimized code allocates where Release does not, so a Debug result is not a verdict; it says so in its message. Never loosen a budget for Debug.
 
 ## Stack & Tools
 

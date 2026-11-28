@@ -17,6 +17,7 @@ using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Definitions;
 using Carbon.Items.Progression;
+using Carbon.Items.Races;
 using Carbon.Items.Serialization;
 using Nalix.Abstractions.Primitives;
 
@@ -61,6 +62,7 @@ public sealed class AuthService : IAuthService, IDisposable
     private readonly TimeProvider _time;
     private readonly Func<ItemRules> _itemRules;
     private readonly Func<ProgressionConfig> _progression;
+    private readonly Func<RaceCatalog> _races;
     private readonly IRememberTokenStore _rememberTokens;
     private readonly ConcurrentDictionary<Guid, LoginFailures> _loginFailures = new();
     private readonly ConcurrentDictionary<string, LoginFailures> _addressFailures = new(StringComparer.Ordinal);
@@ -94,6 +96,7 @@ public sealed class AuthService : IAuthService, IDisposable
     /// Store of remember-me token hashes (ADR-037). The host passes its database store; the in-memory default serves
     /// tests and forgets every token on restart.
     /// </param>
+    /// <param name="races">Returns the world's current race catalog; defaults to the shipped <c>races.json</c> (ADR-042).</param>
     public AuthService(
         IAccountStore accounts,
         ICharacterStore characters,
@@ -101,7 +104,8 @@ public sealed class AuthService : IAuthService, IDisposable
         TimeProvider? time = null,
         Func<ItemRules>? itemRules = null,
         Func<ProgressionConfig>? progression = null,
-        IRememberTokenStore? rememberTokens = null)
+        IRememberTokenStore? rememberTokens = null,
+        Func<RaceCatalog>? races = null)
     {
         _accounts = accounts ?? throw new ArgumentNullException(nameof(accounts));
         _characters = characters ?? throw new ArgumentNullException(nameof(characters));
@@ -123,6 +127,13 @@ public sealed class AuthService : IAuthService, IDisposable
         }
 
         _progression = progression;
+        if (races is null)
+        {
+            RaceCatalog defaults = RaceCatalog.LoadShippedDefaults();
+            races = () => defaults;
+        }
+
+        _races = races;
     }
 
     /// <inheritdoc/>
@@ -325,7 +336,7 @@ public sealed class AuthService : IAuthService, IDisposable
     public async Task<CharacterCreateResult> CreateCharacterAsync(
         Guid accountId,
         string characterName,
-        byte appearancePreset,
+        CharacterLook look,
         float spawnX,
         float spawnY,
         CancellationToken ct = default)
@@ -333,6 +344,13 @@ public sealed class AuthService : IAuthService, IDisposable
         if (!IsValidIdentifier(characterName, 2, 20))
         {
             return new CharacterCreateResult(false, "invalid_name", null);
+        }
+
+        // ADR-042: the server never trusts a look; every id and index must exist in the races.json it runs.
+        RaceCatalog races = _races();
+        if (races.Check(in look) != CharacterLookStatus.Valid)
+        {
+            return new CharacterCreateResult(false, "invalid_look", null);
         }
 
         IReadOnlyList<CharacterRecord> existing = await _characters.ListByAccountAsync(accountId, ct).ConfigureAwait(false);
@@ -359,7 +377,8 @@ public sealed class AuthService : IAuthService, IDisposable
             WearGearTo(inv, this.DebugWornGearPercents);
         }
 
-        DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules(), _progression(), 1, inv, selectedSlot, progression: null);
+        DerivedCharacterStats stats = CharacterStatCalculator.Compute(
+            _itemRules(), _progression(), 1, inv, selectedSlot, progression: null, races.GetStatModifiers(in look));
         byte[] invBlob = InventoryBinaryCodec.Serialize(inv);
 
         CharacterRecord created = new(
@@ -367,7 +386,7 @@ public sealed class AuthService : IAuthService, IDisposable
             accountId,
             characterName.Trim(),
             Level: 1,
-            appearancePreset,
+            look,
             spawnX,
             spawnY,
             CurrentHealth: stats.MaxHealth,

@@ -13,6 +13,7 @@ using Carbon.Desktop.Abstractions.World;
 using Carbon.Desktop.Rendering.Effects;
 using Carbon.Desktop.Rendering.Feedback;
 using Carbon.Desktop.Rendering.Overlays;
+using Carbon.Desktop.Rendering.PostProcessing;
 using Carbon.Desktop.Rendering.VectorArt;
 using Carbon.Graphics.Animation.Directions;
 using Carbon.Graphics.Batching;
@@ -21,6 +22,7 @@ using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.Batching.Sprites;
 using Carbon.Graphics.Fonts.Rendering;
 using Carbon.Graphics.OpenGL.Abstractions;
+using Carbon.Graphics.OpenGL.Device;
 using Carbon.Graphics.OpenGL.States;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
@@ -53,21 +55,29 @@ public sealed class WorldSceneRenderer : IDisposable
     private GeometryBatch _geometryBatch = null!;
     private ChunkTerrainRenderer _terrainRenderer = null!;
     private bool _gpuReady;
+    private WorldPostPipeline? _post;
+    private readonly string? _qualityOverride;
+    private string? _gpuRenderer;
+    private GraphicsQuality? _qualityChoice;
+    private PostPassPlan _plan = PostPassPlan.For(GraphicsQuality.Low);
     private readonly SlowTrail _slowTrail = new();
     private readonly MonsterEffectTints _monsterTints = new();
     private float _slowTrailTime;
     private readonly Atmosphere _atmosphere;
     private readonly IVectorArtRepository? _art;
     private readonly CombatFeedbackTracker _feedback = new();
+    private readonly ImpactPresenter _impact = new();
     private readonly WorldEntityOverlayRenderer _overlays = new();
     private readonly ConstructionOverlayRenderer _construction = new();
     private RoofRenderer? _roofs;
-    private readonly List<PointLight> _lights = new(64);
+    private readonly List<PointLight> _lights = new(128);
+    private SunShadow.State _sun;
     private readonly List<GroundRenderItem> _groundSortList = new(2048);
     private readonly List<CanopyRenderItem> _canopySortList = new(1024);
     private readonly List<DestroyedPropRenderItem> _remnantList = new(512);
     private readonly List<DamagedPropHudMarker> _damagedProps = new(64);
     private readonly List<PointOfInterest> _visibleWorldTrees = new(4);
+    private readonly List<(int TileX, int TileY)> _drawnPois = new(16);
 
     private PointOfInterestResolver? _landmarks;
     private PointOfInterestRenderer? _poiRenderer;
@@ -92,7 +102,32 @@ public sealed class WorldSceneRenderer : IDisposable
 
         _art = artRepository ?? CarbonVectorArtLibrary.LoadOrDefault();
         _atmosphere = new Atmosphere(options.StartHour, options.DayLengthSeconds, options.WeatherRainOverride);
+        _qualityOverride = options.GraphicsQualityOverride;
+        this.RefreshQuality();
     }
+
+    /// <summary>
+    /// Gets or sets the player's saved graphics quality (<see langword="null"/> = auto, chosen from the GPU on the first
+    /// draw). <c>CARBON_GRAPHICS_QUALITY</c> wins over it (ADR-041). Cosmetic only.
+    /// </summary>
+    public GraphicsQuality? QualityChoice
+    {
+        get => _qualityChoice;
+        set
+        {
+            if (_qualityChoice != value)
+            {
+                _qualityChoice = value;
+                this.RefreshQuality();
+            }
+        }
+    }
+
+    /// <summary>Gets the graphics quality preset in effect.</summary>
+    public GraphicsQuality Quality { get; private set; }
+
+    /// <summary>Gets the passes the current <see cref="Quality"/> runs.</summary>
+    internal PostPassPlan Plan => _plan;
 
     /// <summary>Gets the current in-game hour <c>[0..24)</c> from the atmospheric cycle.</summary>
     public float TimeOfDayHour => _atmosphere.Hour;
@@ -190,23 +225,25 @@ public sealed class WorldSceneRenderer : IDisposable
         this.EnsureGpuResources();
         this.EnsureWorldBound(world);
         _animTime += frameDt;
-        if (world.AuthoritativeTimeHour is float authHour)
-        {
-            _atmosphere.SyncToHour(authHour);
-            _atmosphere.Update(0f);
-        }
-        else
-        {
-            _atmosphere.Update(frameDt * timeScale);
-        }
+        AdvanceAtmosphere(_atmosphere, world.AuthoritativeTimeHour, frameDt, timeScale);
         _lights.Clear();
 
         _feedback.Update(world, frameDt, _animTime, aimedWorldPosition);
+        _impact.Update(world, frameDt, this.Feel, _feedback);
 
         _device.SetViewport(0, 0, (uint)viewportWidth, (uint)viewportHeight);
         cameraRig.Resize(viewportWidth, viewportHeight);
-        _device.SetClearColor(new Vector4(0.04f, 0.05f, 0.08f, 1.0f));
-        _device.Clear(ClearBufferMask.ColorBufferBit);
+        Vector4 clearColor = new(0.04f, 0.05f, 0.08f, 1.0f);
+        WorldPostPipeline? post = _plan.UsesOffscreenScene ? this.EnsurePostPipeline() : null;
+        if (post is not null)
+        {
+            post.BeginScene(in _plan, viewportWidth, viewportHeight, in clearColor);
+        }
+        else
+        {
+            _device.SetClearColor(in clearColor);
+            _device.Clear(ClearBufferMask.ColorBufferBit);
+        }
 
         float halfW = viewportWidth * 0.5f / cameraRig.Camera.Zoom;
         float halfH = viewportHeight * 0.5f / cameraRig.Camera.Zoom;
@@ -215,7 +252,9 @@ public sealed class WorldSceneRenderer : IDisposable
         float minY = cameraRig.Camera.Position.Y - halfH;
         float maxY = cameraRig.Camera.Position.Y + halfH;
 
-        Matrix4x4 viewProj = cameraRig.Camera.ViewProjectionMatrix;
+        // Screen shake offsets the world view only (HUD and camera follow are untouched); zero when the setting is off.
+        Vector2 shake = _impact.CameraOffset(this.Feel);
+        Matrix4x4 viewProj = Matrix4x4.CreateTranslation(-shake.X, -shake.Y, 0f) * cameraRig.Camera.ViewProjectionMatrix;
         ChunkWorld2D chunkWorld = world.ChunkWorld;
         float tileSize = chunkWorld.TileSize;
 
@@ -244,7 +283,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 continue;
             }
 
-            AmbientAnimator.DrawRipples(_geometryBatch, _terrainRenderer.GetRipples(chunk.Key), _animTime);
+            AmbientAnimator.DrawRipples(_geometryBatch, _terrainRenderer.GetRipples(chunk.Key), _animTime, tileSize);
             AmbientAnimator.DrawWaterfalls(_geometryBatch, _terrainRenderer.GetWaterfalls(chunk.Key), _animTime);
         }
 
@@ -277,6 +316,15 @@ public sealed class WorldSceneRenderer : IDisposable
 
         this.CollectVisibleObjects(chunkWorld, tileSize, minX, maxX, minY, maxY, playerPos, hasAimTile, aimTileX, aimTileY);
         _construction.BeginFrame(world);
+
+        // Sun shadows of the trees, on the ground under everything that stands (docs/art/graphics-quality.md).
+        _sun = SunShadow.At(_atmosphere.Hour, _atmosphere.Rain);
+        Span<CanopyRenderItem> shadowTrees = CollectionsMarshal.AsSpan(_canopySortList);
+        for (int i = 0; i < shadowTrees.Length; i++)
+        {
+            ref readonly MapProp tree = ref shadowTrees[i].Prop;
+            SunShadow.Draw(_geometryBatch, in _sun, new Vector2(tree.WorldPositionX, tree.WorldPositionY + (10f * tree.Scale)), tree.CanopyRadius * 0.75f, -2f * tree.CanopyOffsetY, 62f);
+        }
 
         Span<DestroyedPropRenderItem> remnantSpan = CollectionsMarshal.AsSpan(_remnantList);
         for (int i = 0; i < remnantSpan.Length; i++)
@@ -322,6 +370,7 @@ public sealed class WorldSceneRenderer : IDisposable
         // Roofs over enclosed rooms (ADR-025), above everything walking inside them; the player's own room stays open.
         _roofs?.Refresh(chunkWorld.Buildings, minX, minY, maxX, maxY);
         _roofs?.Draw(_geometryBatch, chunkWorld.Buildings, playerPos, minX, minY, maxX, maxY, _animTime);
+        _roofs?.CollectLights(_lights, minX, minY, maxX, maxY, _animTime);
 
         // Pass 4: Overhead swaying canopies, particles & action swing ribbons
         _canopySortList.Sort();
@@ -330,10 +379,16 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             ref readonly CanopyRenderItem canopyItem = ref canopySpan[i];
             MapProp tree = canopyItem.Prop;
-            float gust = 0.6f + (0.4f * MathF.Sin(_animTime * 0.35f));
-            float sway = MathF.Sin((_animTime * 1.25f) + (tree.WorldPositionX * 0.013f) + (tree.WorldPositionY * 0.007f)) * 1.8f * gust * tree.Scale;
+            float sway = WindField.Sway(_animTime, tree.WorldPosition, _atmosphere.Rain, tree.Scale);
             byte alpha = tree.IsUnderCanopy(playerPos) ? (byte)90 : (byte)255;
             VectorPropRenderer.DrawCanopy(_geometryBatch, in tree, _art, alpha, sway + canopyItem.ShakeX, canopyItem.DamageTilt);
+            if (alpha == 255)
+            {
+                // Leaves leave the canopy centre and land on the ground about 12 units below the prop origin.
+                Vector2 canopy = tree.WorldPosition + new Vector2(sway, tree.CanopyOffsetY);
+                uint seed = ((uint)(int)tree.WorldPositionX * 73856093u) ^ ((uint)(int)tree.WorldPositionY * 19349663u);
+                FallingLeaves.Draw(_geometryBatch, in tree, seed, canopy, (12f * tree.Scale) - tree.CanopyOffsetY, _animTime, _atmosphere.Rain);
+            }
         }
 
         for (int i = 0; i < _visibleWorldTrees.Count; i++)
@@ -344,31 +399,35 @@ public sealed class WorldSceneRenderer : IDisposable
 
         _feedback.DrawDebrisParticles(_geometryBatch);
         this.DrawActionTrails(world, playerPos);
+        // The weather joins the scene batch, before the lighting: it is lit like the rest of the world, and it needs no
+        // overlay batch (one draw call) of its own.
+        this.DrawWeatherOverlay(cameraRig, minX, minY, maxX, maxY, playerPos);
+
         _geometryBatch.End();
 
-        // Pass 5: Day/night multiply ambient, point lights, weather overlay & interior dimming
-        _geometryBatch.Begin(viewProj, Atmosphere.Multiply);
-        _atmosphere.DrawAmbient(_geometryBatch, minX, minY, maxX, maxY);
-        _geometryBatch.End();
-
+        // Pass 5: Day/night lighting, weather overlay & interior dimming.
         // The player emits no light of their own: an automatic lantern here made the character glow after dark.
-        // Light comes only from world sources (props, POIs, projectiles) and, later, an equipped light item.
-        _geometryBatch.Begin(viewProj, BlendState.Additive);
-        _atmosphere.DrawLights(_geometryBatch, _lights);
-        _geometryBatch.End();
-
-        _geometryBatch.Begin(viewProj);
-        if (cameraRig.InteriorBlend < 0.5f)
+        // Light comes only from world sources (props, POIs, projectiles, fireflies) and, later, an equipped light item.
+        if (post is not null)
         {
-            _atmosphere.DrawOverlay(_geometryBatch, minX, minY, maxX, maxY, playerPos);
+            // ADR-041: lights into the half-res light map (cleared to the ambient), then one composite to the back buffer.
+            _atmosphere.CollectFireflyLights(_lights, playerPos);
+            post.BeginLightMap(_atmosphere.Ambient);
+            _geometryBatch.Begin(viewProj, BlendState.Additive);
+            _atmosphere.DrawLightMapLights(_geometryBatch, _lights);
+            _geometryBatch.End();
+            post.Composite(in _plan, TimeOfDayGrading.Sample(_atmosphere.Hour, _atmosphere.Rain), _atmosphere.Ambient, viewportWidth, viewportHeight);
         }
-
-        if (cameraRig.InteriorBlend > 0.01f)
+        else
         {
-            DrawInteriorRoomMask(_geometryBatch, cameraRig.InteriorRoom, cameraRig.InteriorBlend, minX, minY, maxX, maxY);
-        }
+            _geometryBatch.Begin(viewProj, Atmosphere.Multiply);
+            _atmosphere.DrawAmbient(_geometryBatch, minX, minY, maxX, maxY);
+            _geometryBatch.End();
 
-        _geometryBatch.End();
+            _geometryBatch.Begin(viewProj, BlendState.Additive);
+            _atmosphere.DrawLights(_geometryBatch, _lights);
+            _geometryBatch.End();
+        }
 
         // Pass 6: Screen-space proportional monster/NPC/player plates, ghost-trail HP bars & combat numbers
         if (spriteBatch is not null && font is not null)
@@ -402,12 +461,27 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             if (_gpuReady)
             {
+                _post?.Dispose();
                 _terrainRenderer.Dispose();
                 _geometryBatch.Dispose();
             }
 
             _disposed = true;
             GC.SuppressFinalize(this);
+        }
+    }
+
+    // Clouds, rain, splashes and fireflies, and the interior dimming around the room the player stands in.
+    private void DrawWeatherOverlay(CameraRig2D cameraRig, float minX, float minY, float maxX, float maxY, Vector2 playerPos)
+    {
+        if (cameraRig.InteriorBlend < 0.5f)
+        {
+            _atmosphere.DrawOverlay(_geometryBatch, minX, minY, maxX, maxY, playerPos);
+        }
+
+        if (cameraRig.InteriorBlend > 0.01f)
+        {
+            DrawInteriorRoomMask(_geometryBatch, cameraRig.InteriorRoom, cameraRig.InteriorBlend, minX, minY, maxX, maxY);
         }
     }
 
@@ -422,7 +496,27 @@ public sealed class WorldSceneRenderer : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _geometryBatch = new GeometryBatch(_device);
         _terrainRenderer = new ChunkTerrainRenderer(_device, _art);
+        _gpuRenderer = (_device as GraphicsDevice)?.Capabilities.Renderer;
         _gpuReady = true;
+        this.RefreshQuality();
+    }
+
+    // Resolves the preset (override, saved choice, GPU default) and its pass plan; runs only when an input changes.
+    private void RefreshQuality()
+    {
+        this.Quality = GraphicsQualityPolicy.Resolve(_qualityOverride, _qualityChoice, _gpuRenderer);
+        _plan = PostPassPlan.For(this.Quality);
+    }
+
+    // The post pipeline needs a concrete GL device; it is created the first time a preset asks for it.
+    private WorldPostPipeline? EnsurePostPipeline()
+    {
+        if (_post is null && _device is GraphicsDevice concrete)
+        {
+            _post = new WorldPostPipeline(concrete);
+        }
+
+        return _post;
     }
 
     private void CollectVisibleObjects(
@@ -442,6 +536,7 @@ public sealed class WorldSceneRenderer : IDisposable
         _remnantList.Clear();
         _damagedProps.Clear();
         _visibleWorldTrees.Clear();
+        _drawnPois.Clear();
 
         foreach (Chunk2D chunk in chunkWorld.ActiveChunks)
         {
@@ -452,6 +547,13 @@ public sealed class WorldSceneRenderer : IDisposable
                 float px = (poi.TileX + 0.5f) * tileSize;
                 float py = (poi.TileY + 0.5f) * tileSize;
                 if (px + reach < minX || px - reach > maxX || py + reach < minY || py - reach > maxY || _poiRenderer is null)
+                {
+                    continue;
+                }
+
+                // LandmarkStage lists a point of interest in every chunk within its radius: draw it, and collect its
+                // lights, once per frame, not once per chunk that lists it.
+                if (!TryMarkDrawn(_drawnPois, in poi))
                 {
                     continue;
                 }
@@ -542,6 +644,47 @@ public sealed class WorldSceneRenderer : IDisposable
         }
     }
 
+    /// <summary>
+    /// Records <paramref name="poi"/> as drawn this frame. A point of interest is listed by every chunk within its
+    /// radius (<c>LandmarkStage</c>), so the frame loop meets it several times.
+    /// </summary>
+    /// <param name="drawn">Points of interest already drawn this frame (cleared each frame).</param>
+    /// <param name="poi">The point of interest met.</param>
+    /// <returns><see langword="true"/> the first time this frame; <see langword="false"/> after that.</returns>
+    internal static bool TryMarkDrawn(List<(int TileX, int TileY)> drawn, in PointOfInterest poi)
+    {
+        if (drawn.Contains((poi.TileX, poi.TileY)))
+        {
+            return false;
+        }
+
+        drawn.Add((poi.TileX, poi.TileY));
+        return true;
+    }
+
+    /// <summary>
+    /// One frame of the atmosphere clocks. Offline the local day cycle runs at <paramref name="timeScale"/>. Online the
+    /// server owns the hour (and the weather clock stays put, as before), but the animation clock still advances by
+    /// real frame time, so rain falls, clouds drift and fireflies move.
+    /// </summary>
+    /// <param name="atmosphere">The atmosphere.</param>
+    /// <param name="authoritativeHour">The server's hour, or <see langword="null"/> offline.</param>
+    /// <param name="frameDt">Frame time in seconds.</param>
+    /// <param name="timeScale">Offline day-cycle speed.</param>
+    internal static void AdvanceAtmosphere(Atmosphere atmosphere, float? authoritativeHour, float frameDt, float timeScale)
+    {
+        if (authoritativeHour is float hour)
+        {
+            atmosphere.SyncToHour(hour);
+            atmosphere.Update(0f);
+            atmosphere.Animate(frameDt);
+        }
+        else
+        {
+            atmosphere.Update(frameDt * timeScale);
+        }
+    }
+
     private void CollectActors(IWorldReadModel world, float minX, float maxX, float minY, float maxY)
     {
         WorldSimulation sim = world.Simulation;
@@ -568,6 +711,16 @@ public sealed class WorldSceneRenderer : IDisposable
                 _groundSortList.Add(new GroundRenderItem(remote.Position.Y + remote.Radius, in remote));
             }
         }
+    }
+
+    /// <summary>
+    /// An actor's shadow: a soft contact shadow right under the feet (always, so actors stay grounded at night), plus a
+    /// short sun shadow cast by its body.
+    /// </summary>
+    private static void DrawActorShadow(GeometryBatch batch, in SunShadow.State sun, Vector2 footPos, float radius)
+    {
+        SunShadow.Draw(batch, in sun, footPos, radius * 0.8f, 26f, 54f);
+        batch.FillRadialGradient(new Vector2(footPos.X, footPos.Y + 1f), radius * 1.3f, new ColorRgba(0, 0, 0, 105), new ColorRgba(0, 0, 0, 0), 10, 0.55f);
     }
 
     /// <summary>Gets whether the local player has an effect that lowers move speed (ADR-029).</summary>
@@ -599,7 +752,8 @@ public sealed class WorldSceneRenderer : IDisposable
         float tileSize = world.ChunkWorld.TileSize;
         Vector2 footPos = new(entityPos.X, entityPos.Y + col.Radius);
         CompiledVectorRig? rig = null;
-        bool hasRig = _art is not null && _art.TryGetCharacter(world.LocalPlayerAppearancePreset, out rig);
+        CharacterPalette palette = CharacterPalette.Default;
+        bool hasRig = _art is not null && CharacterLookResolver.TryResolve(_art, world.Races.Current, world.LocalPlayerLook, out rig, out palette);
         WadingRenderer.Wade wade = WadingRenderer.Resolve(world.ChunkWorld, entityPos, hasRig ? rig!.WorldHeight : 35f, col.Radius);
         _slowTrail.Update(footPos, _animTime - _slowTrailTime, IsSlowed(world));
         _slowTrailTime = _animTime;
@@ -611,11 +765,11 @@ public sealed class WorldSceneRenderer : IDisposable
         }
         else
         {
-            batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), col.Radius * 1.18f, new ColorRgba(0, 0, 0, 88), 12);
+            DrawActorShadow(batch, in _sun, footPos, col.Radius);
             batch.DrawCircle(footPos, col.Radius + 3.5f, new ColorRgba(56, 189, 248, 150), 14, 1.3f);
         }
 
-        ActionState action = world.CurrentAction;
+        ActionState action = ShownAction(world.CurrentAction, _impact);
         Vector2 facing = action.IsActive
             ? action.AimDirection
             : (world.LocalFacingDirection.LengthSquared() > 1e-4f ? world.LocalFacingDirection : world.LastAttackDirection);
@@ -633,7 +787,10 @@ public sealed class WorldSceneRenderer : IDisposable
             : action.IsActive
                 ? action.Progress
                 : (world.AttackSwingTimer > 0f ? 1f - Math.Clamp(world.AttackSwingTimer / 0.24f, 0f, 1f) : _animTime);
-        float flash = world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f;
+        float flash = this.Feel.ScaleFlash(world.LocalHitFlashTimer > 0f ? Math.Clamp(world.LocalHitFlashTimer / 0.16f, 0f, 0.8f) : 0f);
+
+        // The body commits toward the target in every facing (docs/art/combat-animation.md §3.3).
+        Vector2 lean = action.IsActive ? AttackLean(in action) : Vector2.Zero;
 
         if (_art is not null && hasRig && rig is not null)
         {
@@ -656,7 +813,7 @@ public sealed class WorldSceneRenderer : IDisposable
             VectorRigRenderer.DrawEntityRig(
                 batch,
                 rig,
-                footPos + new Vector2(0f, wade.Sink),
+                footPos + new Vector2(0f, wade.Sink) + lean,
                 dir8,
                 clip,
                 eval,
@@ -666,9 +823,13 @@ public sealed class WorldSceneRenderer : IDisposable
                 equipped,
                 action,
                 world.AttackSwingTimer,
-                world.LocalPlayerAppearancePreset,
+                palette,
                 loadout,
                 _art);
+            if (!downed)
+            {
+                WeaponTrailRenderer.Draw(batch, rig, equipped, footPos + new Vector2(0f, wade.Sink), dir8, in action, loadout.WeaponUpgradeLevel);
+            }
         }
         else
         {
@@ -730,6 +891,9 @@ public sealed class WorldSceneRenderer : IDisposable
         _ => null,
     };
 
+    /// <summary>Gets or sets the impact feedback settings (screen shake, reduced flashes).</summary>
+    public ImpactFeelOptions Feel { get; set; } = ImpactFeelOptions.Default;
+
     /// <summary>Character clip of a dead player lying on the ground (ADR-031, <c>base_hero.cvg.json</c>).</summary>
     private const string DownedClip = "downed";
 
@@ -759,12 +923,13 @@ public sealed class WorldSceneRenderer : IDisposable
         Direction8 dir8 = DirectionExtensions.FromVector(facing, Direction8.South);
         bool moving = remote.Velocity.LengthSquared() > 9f;
         bool attacking = remote.AttackAnimRemaining > 0f;
-        float flash = remote.HitFlashRemaining > 0f ? Math.Clamp(remote.HitFlashRemaining / 0.16f, 0f, 0.8f) : 0f;
+        float sessionFlash = remote.HitFlashRemaining > 0f ? Math.Clamp(remote.HitFlashRemaining / 0.16f, 0f, 0.8f) : 0f;
+        float flash = this.Feel.ScaleFlash(MathF.Max(sessionFlash, _impact.FlashFor(remote.NetworkId) * 0.9f));
 
         CompiledVectorRig? wadeRig = null;
         bool hasWadeRig = _art is not null && remote.Kind switch
         {
-            EntityKind.Player => _art.TryGetCharacter((byte)remote.ArchetypeId, out wadeRig),
+            EntityKind.Player => CharacterLookResolver.TryResolve(_art, world.Races.Current, remote.Look, out wadeRig, out _),
             EntityKind.Npc => _art.TryGetNpc(remote.ArchetypeId, out wadeRig),
             EntityKind.Monster => _art.TryGetMonster(remote.ArchetypeId, out wadeRig),
             EntityKind.Projectile or EntityKind.LootDrop or _ => false,
@@ -777,7 +942,7 @@ public sealed class WorldSceneRenderer : IDisposable
         }
         else
         {
-            batch.FillCircle(new Vector2(footPos.X + 1.5f, footPos.Y + 1.5f), r * 1.15f, new ColorRgba(0, 0, 0, 82), 12);
+            DrawActorShadow(batch, in _sun, footPos, r);
         }
 
         if (remote.Kind == EntityKind.Npc)
@@ -798,16 +963,16 @@ public sealed class WorldSceneRenderer : IDisposable
         {
             CompiledVectorRig? rig = null;
             CompiledItemVectorArt? remoteWeapon = null;
-            byte preset = 0;
+            CharacterPalette palette = CharacterPalette.Default;
             RigOverlay overlays = RigOverlay.None;
             VisualEquipmentLoadout remoteLoadout = default;
             string clip = moving ? "walk" : "idle";
+            ActionState remoteAction = default;
             bool norm = false;
             float eval = _animTime + (remote.NetworkId % 7 * 0.13f);
 
-            if (remote.Kind == EntityKind.Player && _art.TryGetCharacter((byte)remote.ArchetypeId, out rig))
+            if (remote.Kind == EntityKind.Player && CharacterLookResolver.TryResolve(_art, world.Races.Current, remote.Look, out rig, out palette))
             {
-                preset = (byte)remote.ArchetypeId;
                 remoteLoadout = new VisualEquipmentLoadout(
                     remote.EquippedHeadId,
                     remote.EquippedChestId,
@@ -829,13 +994,21 @@ public sealed class WorldSceneRenderer : IDisposable
                 }
                 else if (attacking)
                 {
-                    clip = remote.ActiveActionKind switch
+                    remoteAction = new ActionState(
+                        remote.ActiveActionKind,
+                        MathF.Max(0.05f, remote.AttackAnimDuration),
+                        remote.AttackAnimRemaining,
+                        facing,
+                        remote.EquippedWeaponId,
+                        remote.ComboStep);
+                    clip = HeroAttackPose.ClipName(HeroAttackTiming.StyleOf(remote.ActiveActionKind, remote.ComboStep)) ?? remote.ActiveActionKind switch
                     {
                         ActionAnimationKind.AxeChop => "chop",
                         ActionAnimationKind.PickaxeMine => "mine",
                         ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
                         ActionAnimationKind.None
                         or ActionAnimationKind.SwordSlash
+                        or ActionAnimationKind.Punch
                         or ActionAnimationKind.MonsterStrike
                         or ActionAnimationKind.MonsterBowShot
                         or ActionAnimationKind.MonsterSpellCast
@@ -846,7 +1019,7 @@ public sealed class WorldSceneRenderer : IDisposable
                         or _ => "slash",
                     };
                     norm = true;
-                    eval = 1f - Math.Clamp(remote.AttackAnimRemaining / MathF.Max(0.05f, remote.AttackAnimDuration), 0f, 1f);
+                    eval = remoteAction.Progress;
                 }
                 else if (SwimClip(wade.State) is string swimClip)
                 {
@@ -883,6 +1056,7 @@ public sealed class WorldSceneRenderer : IDisposable
                         ActionAnimationKind.MonsterSpellCast => "attack_cast",
                         ActionAnimationKind.MonsterHeavySlam => "attack_slam",
                         ActionAnimationKind.None
+                        or ActionAnimationKind.Punch
                         or ActionAnimationKind.SwordSlash
                         or ActionAnimationKind.AxeChop
                         or ActionAnimationKind.PickaxeMine
@@ -906,7 +1080,7 @@ public sealed class WorldSceneRenderer : IDisposable
                 VectorRigRenderer.DrawEntityRig(
                     batch,
                     rig,
-                    footPos + new Vector2(0f, wade.Sink),
+                    footPos + new Vector2(0f, wade.Sink) + (remoteAction.IsActive ? AttackLean(in remoteAction) : Vector2.Zero),
                     dir8,
                     clip,
                     eval,
@@ -914,12 +1088,17 @@ public sealed class WorldSceneRenderer : IDisposable
                     0f,
                     flash,
                     equippedItem: remoteWeapon,
-                    swingTimer: remote.AttackAnimRemaining,
-                    appearancePreset: preset,
+                    action: remoteAction,
+                    swingTimer: remoteAction.IsActive ? 0f : remote.AttackAnimRemaining,
+                    palette: palette,
                     equipment: remoteLoadout,
                     art: _art,
                     overlays: overlays,
                     overlayTime: _animTime + (remote.NetworkId % 11 * 0.37f));
+                if (remoteAction.IsActive)
+                {
+                    WeaponTrailRenderer.Draw(batch, rig, remoteWeapon, footPos + new Vector2(0f, wade.Sink), dir8, in remoteAction, remote.WeaponUpgradeLevel);
+                }
                 WadingRenderer.DrawFront(batch, _art, world.ChunkWorld.TileSize, footPos, in wade, remote.Velocity, _animTime, wadeSeed);
                 return;
             }
@@ -982,14 +1161,17 @@ public sealed class WorldSceneRenderer : IDisposable
         ActionState activeAction = world.CurrentAction;
         if (activeAction.IsActive)
         {
-            ActionVfxRenderer.DrawActionTrail(
-                _geometryBatch,
-                playerPos,
-                activeAction.Kind,
-                activeAction.AimDirection,
-                activeAction.Progress,
-                activeAction.ComboStep,
-                activeAction.EquippedItemId);
+            if (ReleaseVfxProgress(activeAction.Kind, activeAction.ComboStep, activeAction.Progress) is float localVfx)
+            {
+                ActionVfxRenderer.DrawActionTrail(
+                    _geometryBatch,
+                    playerPos,
+                    activeAction.Kind,
+                    activeAction.AimDirection,
+                    localVfx,
+                    activeAction.ComboStep,
+                    activeAction.EquippedItemId);
+            }
         }
         else if (world.AttackSwingTimer > 0f)
         {
@@ -1012,14 +1194,17 @@ public sealed class WorldSceneRenderer : IDisposable
                 ActionAnimationKind remoteKind = r.ActiveActionKind != ActionAnimationKind.None
                     ? r.ActiveActionKind
                     : (r.Kind == EntityKind.Player ? ActionAnimationKind.SwordSlash : ActionAnimationKind.MonsterStrike);
-                ActionVfxRenderer.DrawActionTrail(
-                    _geometryBatch,
-                    r.Position,
-                    remoteKind,
-                    r.FacingDirection,
-                    rProg,
-                    0,
-                    r.EquippedWeaponId);
+                if (ReleaseVfxProgress(remoteKind, r.ComboStep, rProg) is float remoteVfx)
+                {
+                    ActionVfxRenderer.DrawActionTrail(
+                        _geometryBatch,
+                        r.Position,
+                        remoteKind,
+                        r.FacingDirection,
+                        remoteVfx,
+                        r.ComboStep,
+                        r.EquippedWeaponId);
+                }
             }
         }
     }
@@ -1034,6 +1219,11 @@ public sealed class WorldSceneRenderer : IDisposable
     /// <returns>The clip name.</returns>
     public static string ResolveCharacterClip(ActionState action, float attackSwingTimer, bool moving)
     {
+        if (action.IsActive && HeroAttackPose.ClipName(HeroAttackTiming.StyleOf(action.Kind, action.ComboStep)) is string attackClip)
+        {
+            return attackClip;
+        }
+
         if (action.IsActive)
         {
             return action.Kind switch
@@ -1049,11 +1239,68 @@ public sealed class WorldSceneRenderer : IDisposable
                 ActionAnimationKind.ArcaneWave or ActionAnimationKind.SelfAura or ActionAnimationKind.StaffCast or ActionAnimationKind.BowShot => "cast",
                 ActionAnimationKind.PlaceStructure => "chop",
                 ActionAnimationKind.ConsumeItem => "idle",
-                ActionAnimationKind.None or _ => moving ? "walk" : "idle",
+                ActionAnimationKind.Punch or ActionAnimationKind.None or _ => moving ? "walk" : "idle",
             };
         }
 
         return attackSwingTimer > 0f ? "slash" : (moving ? "walk" : "idle");
+    }
+
+    /// <summary>
+    /// Gets the progress to play an action's body-centred VFX at, or <see langword="null"/> to skip it. Melee and tool
+    /// swings draw <see cref="WeaponTrailRenderer"/> along the weapon instead; the bow release streak and the staff burst
+    /// start at release (contact), not at the first frame of the draw; other actions play as before.
+    /// </summary>
+    /// <param name="kind">Action kind.</param>
+    /// <param name="comboStep">Combo step.</param>
+    /// <param name="progress">Normalized action progress.</param>
+    /// <returns>VFX progress, or <see langword="null"/>.</returns>
+    public static float? ReleaseVfxProgress(ActionAnimationKind kind, byte comboStep, float progress)
+    {
+        HeroAttackStyle style = HeroAttackTiming.StyleOf(kind, comboStep);
+        if (style == HeroAttackStyle.None)
+        {
+            return progress;
+        }
+
+        if (style is not (HeroAttackStyle.BowShot or HeroAttackStyle.StaffCast))
+        {
+            return null;
+        }
+
+        float contact = HeroAttackTiming.For(style).ContactFraction;
+        return progress < contact ? null : (progress - contact) / MathF.Max(1e-4f, 1f - contact);
+    }
+
+    /// <summary>
+    /// Gets the local action as drawn this frame: the same swing with its clip time remapped by any hit-stop. The session's
+    /// own action (input, cooldown, simulation) is never changed.
+    /// </summary>
+    /// <param name="action">The session's local action.</param>
+    /// <param name="impact">Impact presenter holding the hit-stop.</param>
+    /// <returns>The action to draw.</returns>
+    public static ActionState ShownAction(ActionState action, ImpactPresenter impact)
+    {
+        ArgumentNullException.ThrowIfNull(impact);
+        if (!action.IsActive)
+        {
+            return action;
+        }
+
+        float shown = MathF.Min(impact.DisplayedProgress(in action), 0.9999f);
+        return action with { RemainingSeconds = action.DurationSeconds * (1f - shown) };
+    }
+
+    /// <summary>World-unit shift of a hero toward its aim for the attack lean (zero for non-attacks).</summary>
+    /// <param name="action">Active action.</param>
+    /// <returns>Offset added to the foot position.</returns>
+    public static Vector2 AttackLean(in ActionState action)
+    {
+        HeroAttackTiming timing = HeroAttackTiming.For(HeroAttackTiming.StyleOf(action.Kind, action.ComboStep));
+        Vector2 aim = action.AimDirection;
+        return timing.Total > 0f && aim.LengthSquared() > 1e-4f
+            ? Vector2.Normalize(aim) * timing.LeanAt(action.Progress)
+            : Vector2.Zero;
     }
 
     private static void DrawDebugSolids(GeometryBatch batch, ChunkWorld2D chunkWorld, float tileSize, float minX, float minY, float maxX, float maxY)

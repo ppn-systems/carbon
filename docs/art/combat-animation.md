@@ -234,10 +234,11 @@ Keyframes gain an optional `ease` (`linear`, `in`, `out`, `inOut`; default `inOu
 
 | Effect | Rule |
 | :--- | :--- |
-| Hit-stop | 50–90 ms, scaled by damage relative to the target's max health. A crit adds 20 ms. Only the attacker's pose and the target's reaction freeze. Client-side only: the session clock, input and the simulation keep running. After the freeze, the attack catches up within its recovery, so the clip still ends on time. |
-| Screen shake | Trauma model. A hit adds trauma scaled by damage (a crit adds more). Offset = trauma² × 3 px with smooth noise, and trauma decays at 2.5/s. The local player getting hit also shakes. **Settings toggle; off means no camera offset at all.** |
-| Hit flash | White on the target for 80–120 ms (a 0.16 s cap today), held through hit-stop. It covers the target only, never the screen. "Reduce flashes" scales it to a soft tint at about 35 % strength. |
-| Particles | Per material: **flesh** (monsters: red-pink droplets and a puff), **wood** (trees, wooden structures: brown splinters), **stone** (rocks, ores: grey chips and sparks). Spawned at contact, along the swing direction, from a fixed-size pool. |
+| Hit-stop | 50–90 ms: 50 ms plus up to 40 ms as the damage nears 40 % of the target's max health, so a crit's extra damage also lengthens it. Only the attacker's displayed pose freezes, and the target's flash holds at full through it. It is client-side only (`HitStop`): the session's action clock, input, the cooldown and the simulation keep running. After the freeze the clip catches up through recovery, so it still ends exactly when the action does. |
+| Screen shake | Trauma model (`TraumaShake`). A local hit adds 0.22 + 0.9 × (damage share), plus 0.15 for a crit and 0.1 for a kill; the local hero getting hit adds 0.3 + 1.2 × share. Offset = trauma² × 3 units along smooth noise, decaying at 2.5/s. It moves the world view only, never the HUD. **Settings → Screen Shake on Hits: off means no camera offset at all.** |
+| Hit flash | White on the target for 120 ms, held through the hit-stop. It covers the target only, never the screen. **Settings → Reduce Hit Flashes** scales every hit flash (target and local hero) to 35 %. |
+| Particles | Directional bursts along the swing: **flesh** on monsters and players (crimson droplets with a pale puff), **wood** on trees and wooden props (brown splinters with light chips), **stone** on rocks and ores (grey chips with pale sparks). They are added to the existing radial prop debris, from the same fixed 256-particle pool. |
+| Presentation timing | A hit the local hero dealt waits, at most 120 ms, until the swing reaches its impact key (`HeroAttackPose.ImpactFraction`). Then the flash, hit-stop, shake and particles play together. A hit confirmed after that point plays on arrival. Other players' hits flash on arrival as before. |
 | Readability | Player juice never covers a monster telegraph. Trails and particles draw above the ground and are short-lived. Hit-stop never pauses a monster's server-driven telegraph timeline. |
 
 ### 3.5 Trail
@@ -246,7 +247,7 @@ Keyframes gain an optional `ease` (`linear`, `in`, `out`, `inOut`; default `inOu
   - It is sampled analytically from the same pose function the renderer uses, at fixed steps across the active window up to the current time.
   - It needs no per-frame history, so it is exact at any frame rate and allocates nothing.
 - It appears only in the active window, plus a 60 ms fade.
-- Colour comes from the weapon tier (wood, stone, copper, iron, crystal, demon). An enhancement level of +4 or more adds a brighter edge, and +7 or more a cyan glow edge, matching the forge sheen.
+- Colour: the held item's accent colour mixed halfway to white, more opaque for higher tiers. The edge matches the forge sheen on the held item: white unenhanced, gold for +1 to +5, cyan for +6 and above.
 - Fists draw a short streak from the knuckles.
 
 ### 3.6 Performance

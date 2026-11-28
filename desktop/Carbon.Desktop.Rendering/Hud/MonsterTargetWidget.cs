@@ -2,6 +2,7 @@
 
 using System;
 using System.Numerics;
+using Carbon.Items.Races;
 using Carbon.Contracts.Entities;
 using Carbon.Desktop.Abstractions.Localization;
 using Carbon.Desktop.Abstractions.World;
@@ -25,6 +26,8 @@ internal sealed class MonsterTargetWidget
 {
     private readonly CachedText _title = new();
     private RemoteEntityView _activeTarget;
+    private RaceCatalog? _races;
+    private CharacterPalette _palette = CharacterPalette.Default;
     private float _ghostRatio;
     private bool _hasTarget;
     private bool _isLocked;
@@ -41,6 +44,7 @@ internal sealed class MonsterTargetWidget
         }
 
         _isLocked = _hasTarget && _activeTarget.NetworkId != 0UL && _activeTarget.NetworkId == world.LockedTargetNetworkId;
+        _races = world.Races.Current;
     }
 
     public void DrawSkin(SpriteBatch spriteBatch, CarbonUiSkin skin, int viewportWidth)
@@ -73,7 +77,7 @@ internal sealed class MonsterTargetWidget
         const float y = 14f;
 
         RectangleF pBox = new(x + 10f, y + 11f, 52f, 52f);
-        CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
+        CompiledVectorRig? rig = ResolveRig(art, _races, in _activeTarget, out _palette);
         if (rig is not null)
         {
             VectorRigRenderer.DrawPortraitRig(
@@ -84,6 +88,7 @@ internal sealed class MonsterTargetWidget
                 Direction8.South,
                 _activeTarget.AttackAnimRemaining > 0f ? "attack" : "idle",
                 animTime,
+                palette: _palette,
                 art: art);
         }
 
@@ -130,7 +135,7 @@ internal sealed class MonsterTargetWidget
         const float y = 14f;
         ColorRgba black = CarbonUiPalette.TextOutline;
 
-        CompiledVectorRig? rig = ResolveRig(art, in _activeTarget);
+        CompiledVectorRig? rig = ResolveRig(art, _races, in _activeTarget, out _palette);
         ushort displayLv = _activeTarget.Level > 0 ? _activeTarget.Level : (rig is not null ? rig.Level : (ushort)1);
         string subtitle = _isLocked
             ? GameText.Get("hud.target.locked")
@@ -160,8 +165,9 @@ internal sealed class MonsterTargetWidget
         CarbonUiSkin.DrawCenteredText(spriteBatch, font, hpText, new RectangleF(x + 70f, y + 40f, 256f, 20f), CarbonUiPalette.TextPrimary, black, 1f);
     }
 
-    private static CompiledVectorRig? ResolveRig(IVectorArtRepository? art, in RemoteEntityView target)
+    private static CompiledVectorRig? ResolveRig(IVectorArtRepository? art, RaceCatalog? races, in RemoteEntityView target, out CharacterPalette palette)
     {
+        palette = CharacterPalette.Default;
         if (art is null)
         {
             return null;
@@ -177,7 +183,7 @@ internal sealed class MonsterTargetWidget
             return nr;
         }
 
-        if (target.Kind == EntityKind.Player && art.TryGetCharacter((byte)target.ArchetypeId, out CompiledVectorRig? cr))
+        if (target.Kind == EntityKind.Player && CharacterLookResolver.TryResolve(art, races, target.Look, out CompiledVectorRig? cr, out palette))
         {
             return cr;
         }

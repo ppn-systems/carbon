@@ -4,6 +4,7 @@ using System;
 using System.Numerics;
 using Carbon.Contracts.Entities;
 using Carbon.Contracts.Entities.S2C;
+using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.World;
 using Carbon.Prediction.Remote;
 
@@ -19,6 +20,7 @@ internal sealed class RemoteEntityState
     public ulong NetworkId { get; init; }
     public EntityKind Kind { get; init; }
     public ushort ArchetypeId { get; init; }
+    public CharacterLook Look { get; init; }
     public string Name { get; init; } = string.Empty;
     public string? NameKey { get; init; }
     public Vector2 Position { get; set; }
@@ -51,13 +53,30 @@ internal sealed class RemoteEntityState
     public float AttackAreaRadius { get; set; }
     public float AttackHalfAngle { get; set; }
     public byte AttackShape { get; set; }
+    public byte ComboStep { get; set; }
     public SnapshotInterpolationBuffer Interpolation { get; } = new(16);
+
+    private AttackComboCounter _combo;
+
+    /// <summary>Starts a swing animation of <paramref name="kind"/> lasting <paramref name="duration"/> seconds.</summary>
+    /// <param name="kind">Action kind.</param>
+    /// <param name="duration">Clip seconds; a hero attack style uses its <see cref="HeroAttackTiming"/> instead.</param>
+    /// <param name="nowSeconds">Monotonic client time, for the combo step.</param>
+    public void StartSwing(ActionAnimationKind kind, float duration, float nowSeconds)
+    {
+        this.ComboStep = _combo.Next(kind, nowSeconds);
+        HeroAttackTiming timing = HeroAttackTiming.For(HeroAttackTiming.StyleOf(kind, this.ComboStep));
+        this.ActiveActionKind = kind;
+        this.AttackAnimDuration = timing.Total > 0f ? timing.Total : duration;
+        this.AttackAnimTimer = this.AttackAnimDuration;
+    }
 
     public static RemoteEntityState FromSpawn(EntitySpawn pkt, string? nameKey) => new()
     {
         NetworkId = pkt.NetworkId,
         Kind = pkt.Kind,
         ArchetypeId = pkt.ArchetypeId,
+        Look = CharacterLook.TryCreate(pkt.RaceId, pkt.BodyType, pkt.AppearanceOptions, out CharacterLook look) ? look : default,
         Name = pkt.Name,
         NameKey = nameKey,
         Position = new Vector2(pkt.PositionX, pkt.PositionY),

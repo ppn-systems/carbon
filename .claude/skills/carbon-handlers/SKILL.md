@@ -18,7 +18,7 @@ Applies to packet handlers and message dispatchers in `server/`.
 - **Context Lifetime**:
   - `IPacketContext<T>` is pooled. Never capture `context` across `await` points or store it in static fields or closures. Copy necessary values (`context.Packet`, `context.Connection`) immediately.
 - **Pooled Responses**:
-  - Responses sent via `context.Sender.ReplyAsync(packet)` must be leased from `PacketFactory<T>.Acquire()`.
+  - Responses sent via `context.Sender.ReplyAsync(packet)` are leased from `PacketFactory<T>.Acquire()`. That allocates one packet per reply (ADR-043), which is accepted because replies are not per tick. Tick-driven server sends go through `WorldOutboundSink` and `PacketPool.Rent<T>()`.
   - Always wrap the lease in `try/catch` and dispose the lease on send completion:
     ```csharp
     PacketScope<MyReply> lease = PacketFactory<MyReply>.Acquire();

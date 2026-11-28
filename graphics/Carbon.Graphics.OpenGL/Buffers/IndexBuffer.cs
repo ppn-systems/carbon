@@ -15,6 +15,7 @@ public sealed class IndexBuffer : IIndexBuffer
     private readonly GL _gl;
     private readonly GlStateCache _stateCache;
     private bool _disposed;
+    private nuint _storeBytes;
 
     /// <inheritdoc/>
     public uint Handle { get; }
@@ -66,6 +67,7 @@ public sealed class IndexBuffer : IIndexBuffer
 
         BufferUsageARB glUsage = ResolveGlUsage(usage);
         _gl.BufferData(BufferTargetARB.ElementArrayBuffer, capacity * elementSize, null, glUsage);
+        _storeBytes = capacity * elementSize;
     }
 
     /// <inheritdoc/>
@@ -106,12 +108,14 @@ public sealed class IndexBuffer : IIndexBuffer
         {
             BufferUsageARB glUsage = ResolveGlUsage(this.Usage);
             _gl.BufferData(BufferTargetARB.ElementArrayBuffer, this.IndexCount * sizeof(ushort), null, glUsage);
+            _storeBytes = this.IndexCount * sizeof(ushort);
         }
 
         fixed (ushort* ptr = indices)
         {
             nuint sizeBytes = (nuint)(indices.Length * sizeof(ushort));
             nint offsetBytes = (nint)(offsetIndices * sizeof(ushort));
+            EnsureStoreHolds(_storeBytes, (nuint)offsetBytes + sizeBytes);
             _gl.BufferSubData(BufferTargetARB.ElementArrayBuffer, offsetBytes, sizeBytes, ptr);
         }
     }
@@ -147,13 +151,56 @@ public sealed class IndexBuffer : IIndexBuffer
         {
             BufferUsageARB glUsage = ResolveGlUsage(this.Usage);
             _gl.BufferData(BufferTargetARB.ElementArrayBuffer, this.IndexCount * sizeof(uint), null, glUsage);
+            _storeBytes = this.IndexCount * sizeof(uint);
         }
 
         fixed (uint* ptr = indices)
         {
             nuint sizeBytes = (nuint)(indices.Length * sizeof(uint));
             nint offsetBytes = (nint)(offsetIndices * sizeof(uint));
+            EnsureStoreHolds(_storeBytes, (nuint)offsetBytes + sizeBytes);
             _gl.BufferSubData(BufferTargetARB.ElementArrayBuffer, offsetBytes, sizeBytes, ptr);
+        }
+    }
+
+    /// <summary>
+    /// Replaces the whole buffer with 32-bit <paramref name="indices"/>: the store is orphaned at their size and uploaded
+    /// in one call (see <see cref="VertexBuffer{TVertex}.ReplaceData"/>). A later partial upload must stay inside them.
+    /// </summary>
+    /// <param name="indices">The new contents.</param>
+    public unsafe void ReplaceData(ReadOnlySpan<uint> indices)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (this.IndexType != DrawElementsType.UnsignedInt)
+        {
+            throw new InvalidOperationException("Index buffer was configured for 16-bit unsigned shorts.");
+        }
+
+        if (indices.IsEmpty)
+        {
+            return;
+        }
+
+        if ((uint)indices.Length > this.IndexCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(indices), "Index data exceeds buffer capacity.");
+        }
+
+        this.Bind();
+        fixed (uint* ptr = indices)
+        {
+            nuint sizeBytes = (nuint)(indices.Length * sizeof(uint));
+            _gl.BufferData(BufferTargetARB.ElementArrayBuffer, sizeBytes, ptr, ResolveGlUsage(this.Usage));
+            _storeBytes = sizeBytes;
+        }
+    }
+
+    // ReplaceData sizes the store to its data; a later partial upload must stay inside it. to its data; a later partial upload must stay inside it.
+    private static void EnsureStoreHolds(nuint storeBytes, nuint endBytes)
+    {
+        if (endBytes > storeBytes)
+        {
+            throw new InvalidOperationException("A partial upload reaches past the data of the last ReplaceData; replace the whole buffer or upload with discardBuffer.");
         }
     }
 

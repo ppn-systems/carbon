@@ -41,6 +41,12 @@ internal sealed class CloudSystem
 
     private readonly record struct Puff(Vector2 Position, float Radius, float Life);
 
+    /// <summary>Gets how many clouds the last <see cref="Update"/> found around the view.</summary>
+    internal int VisibleCount => _visible.Count;
+
+    /// <summary>Gets the centre of visible cloud <paramref name="index"/>.</summary>
+    internal Vector2 VisibleCentre(int index) => _visible[index].Centre;
+
     /// <summary>
     /// Works out which clouds are alive in and around the view this frame. Call once per frame before
     /// drawing shadows and bodies.

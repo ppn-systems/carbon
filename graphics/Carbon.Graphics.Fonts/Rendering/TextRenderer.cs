@@ -125,8 +125,7 @@ public static class TextRenderer
     {
         ArgumentNullException.ThrowIfNull(font, nameof(font));
 
-        int t = Math.Max(1, thickness);
-        float offset = t * scale;
+        float offset = OutlineOffset(font, thickness, scale);
 
         // Render 8 surrounding directions for solid circular outline
         ReadOnlySpan<Vector2> offsets =
@@ -203,8 +202,7 @@ public static class TextRenderer
     {
         ArgumentNullException.ThrowIfNull(font, nameof(font));
 
-        int t = Math.Max(1, thickness);
-        float offset = t * scale;
+        float offset = OutlineOffset(font, thickness, scale);
 
         ReadOnlySpan<Vector2> offsets =
         [
@@ -364,5 +362,16 @@ public static class TextRenderer
             depth,
             footY,
             layer);
+    }
+
+    /// <summary>
+    /// The outline offset in layout units: <paramref name="thickness"/> texels at <paramref name="scale"/>, rounded to
+    /// whole screen pixels for a font re-baked for a UI scale so every side of the outline is equally thick.
+    /// </summary>
+    private static float OutlineOffset(BitmapFont font, int thickness, float scale)
+    {
+        float offset = Math.Max(1, thickness) * scale;
+        float texelsPerUnit = font.TexelsPerUnit;
+        return texelsPerUnit == 1f ? offset : MathF.Max(1f, MathF.Round(offset * texelsPerUnit)) / texelsPerUnit;
     }
 }

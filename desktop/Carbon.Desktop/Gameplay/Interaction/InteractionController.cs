@@ -179,8 +179,8 @@ internal sealed class InteractionController(IWorldSession session)
 
         // A trading blacksmith trades on E (its forge stays on U); a forge artisan who does not trade opens the forge.
         NpcCapabilities caps = _session.GetNpcCapabilities(e.ArchetypeId);
-        return caps.HasFlag(NpcCapabilities.Trader) ? (InteractionKind.Trade, TalkRadius)
-            : caps.HasFlag(NpcCapabilities.ForgeArtisan) ? (InteractionKind.Forge, ForgeRadius)
+        return (caps & NpcCapabilities.Trader) != 0 ? (InteractionKind.Trade, TalkRadius)
+            : (caps & NpcCapabilities.ForgeArtisan) != 0 ? (InteractionKind.Forge, ForgeRadius)
             : (InteractionKind.None, 0f);
     }
 }

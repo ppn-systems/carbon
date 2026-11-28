@@ -39,6 +39,22 @@ public sealed class CharacterPersistenceTests
         inventory.Slots.ToArray().Should().Contain(s => !s.IsEmpty);
     }
 
+    [Theory]
+    [InlineData((byte)1)]
+    [InlineData((byte)2)]
+    public void LoadInventory_RetiredFormatBlob_GrantsTheStarterLoadoutAndFlagsIt(byte retiredVersion)
+    {
+        // A dev database row written before inventory format v3: header (version, capacity, count) and no entries.
+        byte[] blob = [retiredVersion, 40, 0, 0, 0];
+        CharacterRecord old = Character() with { InventoryBlob = blob, Flags = CharacterTraits.None };
+        InventoryContainer inventory = new(PlayerInventoryLayout.TotalCapacity);
+
+        CharacterRecord loaded = CharacterPersistence.LoadInventory(old, inventory);
+
+        loaded.Flags.HasFlag(CharacterTraits.StarterLoadoutGranted).Should().BeTrue("the old row is reset, not crashed on");
+        inventory.Slots.ToArray().Should().Contain(s => !s.IsEmpty);
+    }
+
     [Fact]
     public void LoadInventory_UnreadableBlobOfAClasslessCharacter_LeavesTheBagEmpty()
     {
@@ -120,6 +136,47 @@ public sealed class CharacterPersistenceTests
     }
 
     [Fact]
+    public void MarkDirty_PlayerInTheWorld_OnlyFlagsItAndTheFlushBuildsTheRecord()
+    {
+        // ALLOC-13: a mark no longer builds the record (about 560 B); the next flush builds it once, with the newest state.
+        Harness h = new();
+        PlayerState player = h.Join(new Vector2(40f, 0f));
+        player.Level = 7;
+
+        h.Persistence.MarkDirty(player, inventoryChanged: false);
+        player.SourceCharacter.Level.Should().Be(1, "the mark only flags the player");
+        player.PersistenceDirty.Should().BeTrue();
+
+        player.Level = 8;
+        List<CharacterRecord> batch = [];
+        h.Persistence.CollectBatch(h.Players.Values, batch);
+        batch.Should().ContainSingle().Which.Level.Should().Be(8, "the flush saves the state at flush time");
+    }
+
+    [Fact]
+    public void SnapshotOnLeave_ThenTheEntityIsGone_TheFlushSavesTheStateAtLeave()
+    {
+        // The leave path snapshots before the world despawns the entity; the flush then has only that record.
+        Harness h = new();
+        PlayerState player = h.Join(new Vector2(40f, 0f));
+        player.Level = 7;
+        h.Simulation.Entities.SetTransform(player.Entity, new Transform2D(new Vector2(90f, 12f)));
+        player.Inventory.SetSlot(0, new ItemSlot(1U, 3));
+
+        h.Persistence.SnapshotOnLeave(player);
+        h.Simulation.DespawnEntity(player.Entity);
+        h.Players.Clear();
+        List<CharacterRecord> batch = [];
+        h.Persistence.CollectBatch(h.Players.Values, batch);
+
+        CharacterRecord saved = batch.Should().ContainSingle().Subject;
+        (saved.Level, saved.PositionX, saved.PositionY).Should().Be((7, 90f, 12f));
+        InventoryContainer reloaded = new(4);
+        InventoryBinaryCodec.TryDeserializeInto(saved.InventoryBlob, reloaded).Should().BeTrue();
+        reloaded.GetSlot(0).Should().Be(new ItemSlot(1U, 3), "the inventory at leave was serialized");
+    }
+
+    [Fact]
     public void Requeue_FailedSave_IsSavedAgainByTheNextFlush()
     {
         Harness h = new();
@@ -164,7 +221,7 @@ public sealed class CharacterPersistenceTests
     }
 
     private static CharacterRecord Character() => new(
-        Guid.NewGuid(), Guid.NewGuid(), "Tester", 1, 0, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
+        Guid.NewGuid(), Guid.NewGuid(), "Tester", 1, default, 0f, 0f, 100f, 100f, 0, [], DateTimeOffset.UnixEpoch);
 
     private sealed class Harness
     {

@@ -73,9 +73,13 @@ internal sealed class SettlementNpcSpawner
         _playerLayer = playerLayer;
         _monsterLayer = monsterLayer;
         _npcLayer = npcLayer;
+
+        // ALLOC-7: a chunk's entry ends with the chunk. When it streams in again, PopulateAround revisits it; the site sets
+        // below still hold every site populated or built, so nothing is spawned or built twice.
+        _chunkWorld.ChunkEvicted += this.OnChunkEvicted;
     }
 
-    /// <summary>Gets the number of chunks already populated.</summary>
+    /// <summary>Gets the number of resident chunks already populated.</summary>
     public int PopulatedChunkCount => _populatedChunks.Count;
 
     /// <summary>Gets the village builder, when villages are built from real structures.</summary>
@@ -155,7 +159,8 @@ internal sealed class SettlementNpcSpawner
                 int cx = centerCx + dx;
                 int cy = centerCy + dy;
                 long key = Chunk2D.PackKey(cx, cy);
-                if (!_populatedChunks.Add(key) || !_chunkWorld.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk is null)
+                // Only a resident chunk is recorded: its eviction removes it again (ALLOC-7).
+                if (!_chunkWorld.TryGetChunk(cx, cy, out Chunk2D? chunk) || chunk is null || !_populatedChunks.Add(key))
                 {
                     continue;
                 }
@@ -174,6 +179,8 @@ internal sealed class SettlementNpcSpawner
             }
         }
     }
+
+    private void OnChunkEvicted(long chunkKey) => _ = _populatedChunks.Remove(chunkKey);
 
     private void SpawnSettlementNpcs(in PointOfInterest poi, long chunkKey)
     {

@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Carbon.Graphics.Batching.Common;
 using Carbon.Graphics.Batching.Geometry;
 using Carbon.Graphics.OpenGL.States;
@@ -42,7 +43,7 @@ internal sealed class Atmosphere
         (9.0f, new Vector3(1.00f, 1.00f, 1.00f)),
         (16.5f, new Vector3(1.00f, 0.98f, 0.94f)),
         (18.3f, new Vector3(1.00f, 0.70f, 0.50f)), // sunset
-        (19.6f, new Vector3(0.52f, 0.40f, 0.62f)), // dusk
+        (19.6f, new Vector3(0.60f, 0.49f, 0.66f)), // dusk: violet, but with enough green left that grass keeps its hue
         (21.0f, new Vector3(0.37f, 0.42f, 0.63f)),
         (24f, new Vector3(0.36f, 0.42f, 0.64f)),
     ];
@@ -61,7 +62,11 @@ internal sealed class Atmosphere
 
     private readonly bool? _forcedRain;
     private readonly CloudSystem _clouds = new();
+    // Weather clock: advances only with the local day cycle (frozen while the server owns the hour, as before).
     private float _time;
+
+    // Animation clock: always advances with frame time, so rain falls, clouds drift and fireflies move online too.
+    private float _anim;
 
     /// <summary>Gets the current hour of day (0..24).</summary>
     public float Hour { get; private set; }
@@ -82,10 +87,24 @@ internal sealed class Atmosphere
     /// <summary>Gets the ambient light multiplier for the current hour and weather.</summary>
     public Vector3 Ambient { get; private set; } = Vector3.One;
 
+    /// <summary>
+    /// Advances only the animation clock (rain, splashes, cloud drift, fireflies) by real frame time. Call it each frame
+    /// while the server owns the hour: <see cref="Update"/> then runs with zero time so the hour and weather stay put.
+    /// </summary>
+    /// <param name="dt">Frame time in seconds.</param>
+    public void Animate(float dt) => _anim += dt;
+
+    /// <summary>Gets the animation clock in seconds (what rain, clouds and fireflies move with).</summary>
+    public float AnimationTime => _anim;
+
+    /// <summary>Gets the clock birds and pollen motes fly by: the animation clock, so they keep moving online.</summary>
+    internal float LifeClock => _anim;
+
     /// <summary>Advances the clock and the weather.</summary>
     public void Update(float dt)
     {
         _time += dt;
+        _anim += dt;
         this.Hour = (this.Hour + (dt * 24f / this.DayLength)) % 24f;
 
         // Weather: a slow, smooth cycle; showers take about a quarter of the time.
@@ -112,8 +131,9 @@ internal sealed class Atmosphere
     /// </summary>
     public void DrawCloudShadows(GeometryBatch batch, float minX, float minY, float maxX, float maxY)
     {
-        _clouds.Update(_time, this.Rain, minX, minY, maxX, maxY);
+        this.UpdateClouds(minX, minY, maxX, maxY);
         _clouds.DrawShadows(batch, this.Hour, this.Night, this.Rain);
+        AmbientLife.DrawBirdShadows(batch, this.LifeClock, new Vector2(minX, minY), new Vector2(maxX, maxY), AmbientLife.DayActivity(this.Night, this.Rain));
     }
 
     /// <summary>The ambient pass: multiplies the whole view by the light colour.</summary>
@@ -129,7 +149,10 @@ internal sealed class Atmosphere
         batch.FillRectangle(new RectangleF(minX - 64f, minY - 64f, maxX - minX + 128f, maxY - minY + 128f), c);
     }
 
-    /// <summary>The light pass (additive): soft radial glows, stronger the darker it is.</summary>
+    /// <summary>
+    /// The Low-preset light pass (additive over the darkened scene): two radial-gradient fans per light give a soft,
+    /// peaked falloff, stronger the darker it is.
+    /// </summary>
     public void DrawLights(GeometryBatch batch, List<PointLight> lights)
     {
         // Lights only matter once the day dims; at noon they vanish entirely.
@@ -139,23 +162,60 @@ internal sealed class Atmosphere
             return;
         }
 
-        foreach (PointLight light in lights)
+        DrawGlows(batch, lights, strength, 0.25f, 0.20f);
+    }
+
+    /// <summary>
+    /// The light-map pass (ADR-041): lights added into a map cleared to the ambient, which the composite multiplies
+    /// over the scene. The map stores half the light, so these peaks (0.7 × intensity) light the scene up to about 1.4×.
+    /// </summary>
+    public void DrawLightMapLights(GeometryBatch batch, List<PointLight> lights)
+    {
+        float strength = MathF.Pow(this.Night, 1.1f);
+        if (strength < 0.02f)
         {
+            return;
+        }
+
+        DrawGlows(batch, lights, strength, 0.40f, 0.30f);
+    }
+
+    /// <summary>
+    /// Adds the night fireflies near <paramref name="player"/> as small lights, so they light the ground in the light
+    /// map. Same positions and pulse as the dots <see cref="DrawOverlay"/> draws.
+    /// </summary>
+    public void CollectFireflyLights(List<PointLight> lights, Vector2 player)
+    {
+        float fade = this.FireflyFade();
+        if (fade <= 0f)
+        {
+            return;
+        }
+
+        for (int i = 0; i < FireflyCount; i++)
+        {
+            (Vector2 p, float glow) = this.Firefly(i, player);
+            lights.Add(new PointLight(p, 34f, new ColorRgba(214, 240, 120), 0.55f * glow * fade));
+        }
+    }
+
+    private static void DrawGlows(GeometryBatch batch, List<PointLight> lights, float strength, float outerShare, float coreShare)
+    {
+        Span<PointLight> span = CollectionsMarshal.AsSpan(lights);
+        for (int i = 0; i < span.Length; i++)
+        {
+            ref readonly PointLight light = ref span[i];
             float k = light.Intensity * strength;
             if (k < 0.02f)
             {
                 continue;
             }
 
-            // Ten thin layers approximate a smooth radial falloff without visible rings.
-            const int Layers = 10;
-            for (int i = 0; i < Layers; i++)
-            {
-                float t = i / (float)Layers;
-                float r = light.Radius * (1f - (t * 0.9f));
-                byte a = (byte)Math.Clamp(11f * k, 0f, 255f);
-                batch.FillCircle(light.Position, r, new ColorRgba(light.Color.R, light.Color.G, light.Color.B, a), 28);
-            }
+            ColorRgba rim = new(light.Color.R, light.Color.G, light.Color.B, 0);
+            byte outer = (byte)Math.Clamp(255f * outerShare * k, 0f, 255f);
+            byte core = (byte)Math.Clamp(255f * coreShare * k, 0f, 255f);
+            batch.FillRadialGradient(light.Position, light.Radius, new ColorRgba(light.Color.R, light.Color.G, light.Color.B, outer), rim, 24);
+            batch.FillRadialGradient(light.Position, light.Radius * 0.45f, new ColorRgba(light.Color.R, light.Color.G, light.Color.B, core), rim, 16);
         }
     }
 
@@ -163,29 +223,58 @@ internal sealed class Atmosphere
     public void DrawOverlay(GeometryBatch batch, float minX, float minY, float maxX, float maxY, Vector2 player)
     {
         _clouds.DrawClouds(batch, this.Hour, this.Night, this.Rain, player);
+        AmbientLife.DrawSky(batch, this.LifeClock, new Vector2(minX, minY), new Vector2(maxX, maxY), AmbientLife.DayActivity(this.Night, this.Rain));
 
         if (this.Rain > 0.02f)
         {
             this.DrawRain(batch, minX, minY, maxX, maxY);
         }
 
-        if (this.Night > 0.4f && this.Rain < 0.5f)
+        float fade = this.FireflyFade();
+        if (fade > 0f)
         {
             // Fireflies around the player at night
-            float fade = (this.Night - 0.4f) / 0.6f * (1f - (this.Rain * 2f));
-            for (int i = 0; i < 26; i++)
+            for (int i = 0; i < FireflyCount; i++)
             {
-                float t = _time * (0.18f + (AmbientAnimator.Hash01(51u, i) * 0.2f));
-                Vector2 home = new(
-                    (MathF.Floor(player.X / 600f) * 600f) + (AmbientAnimator.Hash01(52u, i) * 1200f) - 300f,
-                    (MathF.Floor(player.Y / 600f) * 600f) + (AmbientAnimator.Hash01(53u, i) * 900f) - 200f);
-                Vector2 p = home + new Vector2(MathF.Sin(t + i) * 60f, MathF.Cos((t * 1.4f) + (i * 0.7f)) * 40f);
-                float glow = 0.5f + (0.5f * MathF.Sin((_time * 3.5f) + (i * 2.1f)));
+                (Vector2 p, float glow) = this.Firefly(i, player);
                 batch.FillCircle(p, 8f, new ColorRgba(253, 230, 138, (byte)(45 * glow * fade)), 10);
                 batch.FillCircle(p, 1.8f, new ColorRgba(255, 250, 200, (byte)((120 + (130 * glow)) * fade)), 6);
             }
         }
     }
+
+    private const int FireflyCount = 26;
+
+    // 0 by day and in heavy rain, rising to 1 deep in the night.
+    private float FireflyFade() =>
+        this.Night > 0.4f && this.Rain < 0.5f ? (this.Night - 0.4f) / 0.6f * (1f - (this.Rain * 2f)) : 0f;
+
+    private (Vector2 Position, float Glow) Firefly(int i, Vector2 player)
+    {
+        float t = _anim * (0.18f + (AmbientAnimator.Hash01(51u, i) * 0.2f));
+        Vector2 home = new(
+            (MathF.Floor(player.X / 600f) * 600f) + (AmbientAnimator.Hash01(52u, i) * 1200f) - 300f,
+            (MathF.Floor(player.Y / 600f) * 600f) + (AmbientAnimator.Hash01(53u, i) * 900f) - 200f);
+        Vector2 p = home + new Vector2(MathF.Sin(t + i) * 60f, MathF.Cos((t * 1.4f) + (i * 0.7f)) * 40f);
+        float glow = 0.5f + (0.5f * MathF.Sin((_anim * 3.5f) + (i * 2.1f)));
+        return (p, glow);
+    }
+
+    /// <summary>Gets the top of rain streak <paramref name="i"/> in a view, falling with the animation clock.</summary>
+    internal Vector2 RainStreak(int i, float minX, float minY, float width, float height)
+    {
+        float speed = 0.9f + (AmbientAnimator.Hash01(61u, i) * 0.5f);
+        float phase = AmbientAnimator.Frac((_anim * speed * 1.6f) + AmbientAnimator.Hash01(62u, i));
+        float x = minX + (AmbientAnimator.Frac(AmbientAnimator.Hash01(63u, i) + (phase * 0.12f)) * width);
+        return new Vector2(x, minY + (phase * height));
+    }
+
+    /// <summary>Gets the clouds of the last <see cref="UpdateClouds"/>.</summary>
+    internal CloudSystem Clouds => _clouds;
+
+    /// <summary>Works out the clouds alive around the view for this frame, drifting with the animation clock.</summary>
+    internal void UpdateClouds(float minX, float minY, float maxX, float maxY) =>
+        _clouds.Update(_anim, this.Rain, minX, minY, maxX, maxY);
 
     private void DrawRain(GeometryBatch batch, float minX, float minY, float maxX, float maxY)
     {
@@ -195,19 +284,16 @@ internal sealed class Atmosphere
         ColorRgba streak = new(200, 214, 236, (byte)(150 * this.Rain));
         for (int i = 0; i < drops; i++)
         {
-            float speed = 0.9f + (AmbientAnimator.Hash01(61u, i) * 0.5f);
-            float phase = AmbientAnimator.Frac((_time * speed * 1.6f) + AmbientAnimator.Hash01(62u, i));
-            float x = minX + (AmbientAnimator.Frac(AmbientAnimator.Hash01(63u, i) + (phase * 0.12f)) * w);
-            float y = minY + (phase * h);
-            batch.DrawLine(new Vector2(x, y), new Vector2(x - 4f, y + 16f), streak, 1.3f);
+            Vector2 head = this.RainStreak(i, minX, minY, w, h);
+            batch.DrawLine(head, new Vector2(head.X - 4f, head.Y + 16f), streak, 1.3f);
         }
 
         // Splash rings on the ground
         int splashes = (int)(70 * this.Rain);
         for (int i = 0; i < splashes; i++)
         {
-            float phase = AmbientAnimator.Frac((_time * 2.2f) + AmbientAnimator.Hash01(64u, i));
-            int cycle = (int)((_time * 2.2f) + AmbientAnimator.Hash01(64u, i));
+            float phase = AmbientAnimator.Frac((_anim * 2.2f) + AmbientAnimator.Hash01(64u, i));
+            int cycle = (int)((_anim * 2.2f) + AmbientAnimator.Hash01(64u, i));
             float x = minX + (AmbientAnimator.Hash01(65u, i + (cycle * 97)) * w);
             float y = minY + (AmbientAnimator.Hash01(66u, i + (cycle * 89)) * h);
             float r = 2f + (phase * 7f);

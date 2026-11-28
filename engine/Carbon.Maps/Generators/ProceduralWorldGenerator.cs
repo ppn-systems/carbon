@@ -112,7 +112,7 @@ public sealed class ProceduralWorldGenerator : ITileSource
         ulong seed = settings.Seed;
         _seed = seed;
         ElevationStage elevation = new(seed, settings.Frequency);
-        _rivers = new RiverNetwork(seed, settings.Frequency, elevation);
+        _rivers = new RiverNetwork(seed, elevation);
         _landmarks = new PointOfInterestResolver(seed, this, _rivers, this.Structures);
         _roads = new RoadNetwork(StageSeed.Derive(seed, "roads"), _landmarks, this, _rivers);
         _landmarks.Roads = _roads;
@@ -231,6 +231,9 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <returns>Width-scaled distance to the nearest river or lake.</returns>
     public float GetRiverDistance(int worldX, int worldY) => _rivers.GetDistance(worldX, worldY);
 
+    /// <summary>Gets the river network (tests: region builds and cache state).</summary>
+    internal RiverNetwork Rivers => _rivers;
+
     /// <summary>
     /// Builds the river regions around a point on the thread pool ahead of time, so streaming chunks in
     /// does not stall on a region build (~0.3 s each). Safe to call every frame.
@@ -238,8 +241,51 @@ public sealed class ProceduralWorldGenerator : ITileSource
     /// <param name="worldTileX">World tile X.</param>
     /// <param name="worldTileY">World tile Y.</param>
     /// <param name="radiusTiles">Radius in tiles.</param>
-    public void PrewarmHydrology(int worldTileX, int worldTileY, int radiusTiles) =>
-        _rivers.Prewarm(worldTileX, worldTileY, radiusTiles);
+    /// <param name="stream">Who is streaming (one per player on the server); its regions stay cached while it is near them.</param>
+    public void PrewarmHydrology(int worldTileX, int worldTileY, int radiusTiles, ulong stream = 0) =>
+        _rivers.Prewarm(worldTileX, worldTileY, radiusTiles, stream);
+
+    /// <summary>Gets how road sites are planned ahead of a streaming player (ADR-045 D1, D5).</summary>
+    public RoadPrewarmOptions RoadPrewarm
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            value.Validate();
+            field = value;
+        }
+    } = RoadPrewarmOptions.Default;
+
+    /// <summary>
+    /// Plans, in the background, the road sites the chunks of a tile rectangle need (ADR-045 D1), with at most
+    /// <see cref="RoadPrewarmOptions.Workers"/> builds at once; the river regions their routes cross are built there too.
+    /// </summary>
+    /// <param name="minTileX">Rectangle left, in world tiles.</param>
+    /// <param name="minTileY">Rectangle top, in world tiles.</param>
+    /// <param name="maxTileX">Rectangle right, in world tiles.</param>
+    /// <param name="maxTileY">Rectangle bottom, in world tiles.</param>
+    /// <param name="stream">Who is streaming (one per player on the server).</param>
+    public void PrewarmRoads(int minTileX, int minTileY, int maxTileX, int maxTileY, ulong stream = 0) =>
+        _roads.Prewarm(minTileX, minTileY, maxTileX, maxTileY, stream, this.RoadPrewarm.Workers);
+
+    /// <summary>Releases what <paramref name="stream"/> kept cached or wanted planned (the player left).</summary>
+    /// <param name="stream">The stream passed to <see cref="PrewarmHydrology"/> and <see cref="PrewarmRoads"/>.</param>
+    public void ReleaseStream(ulong stream)
+    {
+        _rivers.ReleaseStream(stream);
+        _roads.ReleaseStream(stream);
+    }
+
+    /// <summary>Stops the generator's background builds, roads and rivers, on shutdown (ADR-045 D10).</summary>
+    /// <param name="timeout">How long to wait for running builds, for each network.</param>
+    /// <returns><see langword="true"/> if every build finished within <paramref name="timeout"/>.</returns>
+    public bool StopBackgroundBuilds(TimeSpan timeout)
+    {
+        // Roads first: a road build reads river regions, so the river builds it waits on must still run.
+        bool roads = _roads.StopBackgroundBuilds(timeout);
+        return _rivers.StopBackgroundBuilds(timeout) && roads;
+    }
 
     /// <summary>
     /// Samples a single map tile at world tile coordinates with continuous multi-scale coherent noise.

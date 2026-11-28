@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Carbon.Contracts.Identity;
 using Carbon.Desktop.Abstractions.Identity;
 using Carbon.Desktop.Abstractions.Localization;
 
@@ -75,12 +76,12 @@ internal sealed class CharacterRosterRequests
     public void LoadRoster() => _listTask = _service.ListCharactersAsync();
 
     /// <summary>Asks the server to create <paramref name="name"/>; the roster selects it once it reloads.</summary>
-    public void Create(string name, byte appearancePreset)
+    public void Create(string name, CharacterLook look)
     {
         ArgumentNullException.ThrowIfNull(name);
         string trimmed = name.Trim();
         _roster.SelectAfterNextLoad(trimmed);
-        _createTask = _service.CreateCharacterAsync(name, appearancePreset);
+        _createTask = _service.CreateCharacterAsync(name, look);
         this.SetStatus(GameText.Format("character.status.creating", new TextArg("name", trimmed)), isError: false);
     }
 

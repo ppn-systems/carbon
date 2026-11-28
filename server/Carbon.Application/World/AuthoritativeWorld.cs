@@ -41,12 +41,14 @@ using Carbon.Economy.Loot;
 using Carbon.Items.Catalog;
 using Carbon.Items.Containers;
 using Carbon.Items.Progression;
+using Carbon.Items.Races;
 using Carbon.Items.Serialization;
 using Carbon.Items.Systems;
 using Carbon.Maps.Building;
 using Carbon.Maps.Generators;
 using Carbon.Maps.Hydrology;
 using Carbon.Maps.Props;
+using Carbon.Maps.Roads;
 using Carbon.Maps.Settlements;
 using Carbon.Maps.Streaming;
 using Carbon.Simulation.ECS;
@@ -69,6 +71,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 {
     private const float BaseWalkSpeed = 250f;
     private const float SprintSpeed = 450f;
+
+    /// <summary>Chunks streamed around each player, on each axis (the client requests the same ring).</summary>
+    private const int StreamChunkRadius = 2;
+
+    /// <summary>
+    /// Chunks around its own chunk a player may request, on each axis (audit SA-10): the stream radius plus one chunk of
+    /// slack for the client's predicted position and requests in flight across a chunk boundary or a teleport.
+    /// </summary>
+    internal const int ChunkRequestReach = StreamChunkRadius + 1;
     private const float DefaultEntityRadius = 7f;
     private const uint PlayerLayer = 1U;
     private const uint MonsterLayer = 2U;
@@ -126,10 +137,15 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     private readonly Func<int, int, bool> _isPropTileBlocked;
     private readonly Func<int, int, bool> _isPropTileWatched;
     private PropRegrowthRules _propRegrowth;
+    private RaceCatalog _races = RaceCatalog.LoadShippedDefaults();
     private readonly Entity[] _combatHitScratch = new Entity[32];
 
     private ulong _nextNetworkId = 1000UL;
     private ulong _currentTick;
+
+    // Audit SA-10: chunk requests refused since the last warning, and the earliest tick of the next warning.
+    private long _refusedChunkRequests;
+    private ulong _nextChunkRefusalLogTick;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthoritativeWorld"/> class.
@@ -154,8 +170,9 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// </param>
     /// <param name="statusEffects">Status effect definitions (<c>status_effects.json</c>, ADR-029); defaults to the shipped copy.</param>
     /// <param name="stamina">Stamina tuning (<c>stamina.json</c>, ADR-033); defaults to the shipped copy.</param>
-    /// <param name="logger">Diagnostics (legacy save fix-ups on enter, ADR-035); defaults to none.</param>
+    /// <param name="logger">Diagnostics (chunk delta rows dropped at boot, ADR-039); defaults to none.</param>
     /// <param name="propRegrowth">Natural prop regrowth (<c>props.json</c>, ADR-040); defaults to the shipped copy.</param>
+    /// <param name="roadPrewarm">How road sites are planned ahead of players (ADR-045); the defaults when <see langword="null"/>.</param>
     public AuthoritativeWorld(
         ulong worldSeed,
         float tileSize,
@@ -176,7 +193,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
         ILogger? logger = null,
-        PropRegrowthRules? propRegrowth = null)
+        PropRegrowthRules? propRegrowth = null,
+        RoadPrewarmOptions? roadPrewarm = null)
     {
         ArgumentNullException.ThrowIfNull(chunkDeltaRepo);
         ArgumentNullException.ThrowIfNull(characterStore);
@@ -198,7 +216,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         _itemRules = economy?.ItemRules ?? ItemRules.LoadShippedDefaults();
 
         StructureCatalog structures = structureCatalog ?? StructureCatalog.LoadEmbedded();
-        _generator = new ProceduralWorldGenerator(this.WorldSeed, structures: structures); // villages are planned with the served catalog
+        _generator = new ProceduralWorldGenerator(this.WorldSeed, structures: structures) // villages are planned with the served catalog
+        {
+            RoadPrewarm = roadPrewarm ?? RoadPrewarmOptions.Default,
+        };
         _chunkWorld = new ChunkWorld2D(_generator, this.TileSize, this.Frequency);
         _playerMaterials = new PlayerMaterialAdapter(this);
         _simulation = new WorldSimulation(this.TickRate, this.TileSize)
@@ -323,6 +344,10 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// New prop regrowth rules (<c>props.json</c>, ADR-040), or <see langword="null"/> to keep them; props already
     /// waiting keep their scheduled tick.
     /// </param>
+    /// <param name="races">
+    /// New race catalog (<c>races.json</c>, ADR-042), or <see langword="null"/> to keep it; connected players' race stat
+    /// changes are re-read and their stats recomputed.
+    /// </param>
     public void ApplyGameData(
         GameEconomy? economy,
         NeedsConfig needsConfig,
@@ -331,7 +356,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         StatusEffectCatalog? statusEffects = null,
         StaminaConfig? stamina = null,
         WaterRules? water = null,
-        PropRegrowthRules? propRegrowth = null)
+        PropRegrowthRules? propRegrowth = null,
+        RaceCatalog? races = null)
     {
         ArgumentNullException.ThrowIfNull(needsConfig);
         ArgumentNullException.ThrowIfNull(foodCatalog);
@@ -340,6 +366,17 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _economy = economy;
             _itemRules = economy?.ItemRules ?? _itemRules;
             _needs.Reconfigure(needsConfig, foodCatalog);
+            if (races is not null)
+            {
+                _races = races;
+                foreach (PlayerState player in _players.ByConnection.Values)
+                {
+                    player.RaceModifiers = races.GetStatModifiers(player.SourceCharacter.Look);
+                    _progressionService.RecomputeDerivedStats(player);
+                    player.StatsDirty = true;
+                }
+            }
+
             _progressionService.Reconfigure(progression, _players.ByConnection.Values);
             if (statusEffects is not null)
             {
@@ -359,6 +396,18 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             if (propRegrowth is not null)
             {
                 _propRegrowth = propRegrowth;
+            }
+        }
+    }
+
+    /// <summary>Gets the playable races the server validates looks against (ADR-042).</summary>
+    public RaceCatalog Races
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _races;
             }
         }
     }
@@ -453,6 +502,12 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
     /// <summary>Gets the world generator (tests: villages are planned with the served <c>structures.json</c>).</summary>
     internal ProceduralWorldGenerator Generator => _generator;
 
+    /// <summary>Gets the simulation, for tests that drive entities directly (kill and respawn guards).</summary>
+    internal WorldSimulation Simulation => _simulation;
+
+    /// <summary>Gets the streamed chunk world (tests read chunk deltas through it).</summary>
+    internal ChunkWorld2D Chunks => _chunkWorld;
+
     /// <inheritdoc/>
     public float TileSize { get; }
 
@@ -486,16 +541,32 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
         {
             for (int i = 0; i < deltas.Count; i++)
             {
-                ChunkDelta domainDelta = ChunkDelta.Deserialize(deltas[i].Payload, _currentTick);
+                ChunkDelta domainDelta;
+                try
+                {
+                    domainDelta = ChunkDelta.Deserialize(deltas[i].Payload, _currentTick);
+                }
+                catch (FormatException ex)
+                {
+                    // ADR-039: a row in a retired format, or a corrupt one, is dropped, so the chunk comes back from its
+                    // baseline. Boot never fails on a stored row.
+                    if (_logger.IsEnabled(LogLevel.Warning))
+                    {
+                        _logger.LogWarning(
+                            "Dropped the stored delta of chunk ({ChunkX}, {ChunkY}): {Reason}",
+                            deltas[i].ChunkX,
+                            deltas[i].ChunkY,
+                            ex.Message);
+                    }
+
+                    continue;
+                }
+
                 _chunkWorld.ImportDelta(domainDelta);
             }
 
-            // Rows saved before format 4 kept no respawn timers (ADR-040 D4): reschedule their destroyed props once, and
-            // save those chunks again in the new format.
-            _ = _chunkWorld.ScheduleLegacyRespawns(this.PropRegrowDelayTicksLocked, _currentTick, _dirtyChunks);
-
             Vector2 originSpawn = _chunkWorld.SpawnWorldPosition;
-            _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: 2, evictionRadius: 8);
+            _chunkWorld.UpdateAroundPosition(originSpawn, chunkRadius: StreamChunkRadius, evictionRadius: 8);
             _settlements.PopulateAround(originSpawn, radius: 2);
         }
     }
@@ -532,7 +603,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             bool diedBeforeLogout = character.CurrentHealth <= 0f;
             Vector2 spawnPos = _debugSpawnPosition
                 ?? (diedBeforeLogout ? _chunkWorld.SpawnWorldPosition : new Vector2(character.PositionX, character.PositionY));
-            _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: 2, evictionRadius: 8);
+            _chunkWorld.UpdateAroundPosition(spawnPos, chunkRadius: StreamChunkRadius, evictionRadius: 8, stream: connectionId);
             _settlements.PopulateAround(spawnPos, radius: 2);
 
             ulong networkId = ++_nextNetworkId;
@@ -547,23 +618,13 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             character = CharacterPersistence.LoadInventory(character, inventory);
             _ = CharacterPersistence.ClampDurability(_itemRules, inventory);
 
-            // ADR-035: items no longer exist at 0 durability; one saved in the retired "worn out" state gets 1 back.
-            int legacyRestored = DurabilityWear.RestoreLegacyBrokenItems(_itemRules, inventory);
-            if (legacyRestored > 0 && _logger.IsEnabled(LogLevel.Warning))
-            {
-                _logger.LogWarning(
-                    "Character {CharacterId} had {Count} item(s) saved at 0 durability; restored them to {Durability} (ADR-035).",
-                    character.Id,
-                    legacyRestored,
-                    DurabilityWear.LegacyRestoredDurability);
-            }
-
             ushort startLevel = (ushort)Math.Min(Math.Max(Math.Max((ushort)1, character.Level), _debugStartLevel), _progressionService.Config.MaxLevel);
             byte selectedSlot = character.SelectedHotbarSlot < PlayerInventoryLayout.HotbarCount ? character.SelectedHotbarSlot : (byte)0;
             CharacterProgressionState startProg = CharacterPersistence.LoadProgression(character);
             bool refunded = _progressionService.RefundIfOverBudget(startLevel, startProg);
 
-            DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg);
+            StatBlock? raceModifiers = _races.GetStatModifiers(character.Look);
+            DerivedCharacterStats stats = CharacterStatCalculator.Compute(_itemRules, _progressionService.Config, startLevel, inventory, selectedSlot, startProg, raceModifiers);
             float startHp = diedBeforeLogout ? stats.MaxHealth : MathF.Min(stats.MaxHealth, MathF.Max(1f, character.CurrentHealth));
             _simulation.Entities.SetHealth(entity, new HealthComponent(startHp, stats.MaxHealth));
             _simulation.Entities.SetComponent(entity, _needs.Restore(character));
@@ -596,6 +657,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
             PlayerState playerState = new(session, entity, character, inventory)
             {
+                RaceModifiers = raceModifiers,
                 Level = startLevel,
                 Experience = character.Experience,
                 Stats = stats,
@@ -618,11 +680,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             _players.ByConnection[connectionId] = playerState;
             _players.ConnectionByNetworkId[networkId] = connectionId;
             _replication.Track(connectionId);
-            if (legacyRestored > 0)
-            {
-                this.MarkCharacterDirtyLocked(playerState, inventoryChanged: true);
-            }
-            else if (refunded || diedBeforeLogout)
+            if (refunded || diedBeforeLogout)
             {
                 this.MarkCharacterDirtyLocked(playerState, inventoryChanged: false);
             }
@@ -638,7 +696,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 spawnPos.Y,
                 _currentTick,
                 this.TickRate,
-                character.AppearancePreset,
+                character.Look,
                 selectedSlot,
                 startLevel,
                 character.Experience,
@@ -736,7 +794,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitAllocateCharacterPointAsync(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount = 1) =>
-        _commands.Submit(WorldCommandKind.AllocateCharacterPoint, connectionId, (ushort)kind, targetId, amount);
+        _commands.SubmitAsync(WorldCommandKind.AllocateCharacterPoint, connectionId, (ushort)kind, targetId, amount);
 
     /// <summary>
     /// Allocates unspent attribute or skill mastery points. Synchronous form used by the tick and tests; handlers use
@@ -813,12 +871,16 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             return false;
         }
 
-        this.MarkCharacterDirtyLocked(state, inventoryChanged: true);
+        _persistence.SnapshotOnLeave(state);
         _ = _players.ConnectionByNetworkId.Remove(state.Session.PlayerNetworkId);
         _replication.Untrack(connectionId);
+        _chunkWorld.ReleaseStream(connectionId);
         _simulation.DespawnEntity(state.Entity);
         return true;
     }
+
+    /// <inheritdoc/>
+    public bool StopBackgroundBuilds(TimeSpan timeout) => _generator.StopBackgroundBuilds(timeout);
 
     private void MarkCharacterDirtyLocked(PlayerState state, bool inventoryChanged = true) =>
         _persistence.MarkDirty(state, inventoryChanged);
@@ -835,7 +897,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
             return new SpawnIdentity(
                 EntityKind.Player,
                 state.Session.CharacterName,
-                state.SourceCharacter.AppearancePreset,
+                0,
                 (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.HeadSlot).ItemId,
                 (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.ChestSlot).ItemId,
                 (ushort)state.Inventory.GetSlot(PlayerInventoryLayout.LegsSlot).ItemId,
@@ -843,7 +905,8 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
                 (ushort)held.ItemId,
                 state.Level,
                 0,
-                ItemEnhancementPolicy.GetUpgradeLevel(in held));
+                ItemEnhancementPolicy.GetUpgradeLevel(in held),
+                Look: state.SourceCharacter.Look);
         }
 
         if (_actorsByNetworkId.TryGetValue(networkId, out NpcActorMeta meta))
