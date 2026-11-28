@@ -794,7 +794,7 @@ public sealed partial class AuthoritativeWorld : IAuthoritativeWorld, IWorldComm
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitAllocateCharacterPointAsync(ulong connectionId, PointAllocationKind kind, ushort targetId, byte amount = 1) =>
-        _commands.Submit(WorldCommandKind.AllocateCharacterPoint, connectionId, (ushort)kind, targetId, amount);
+        _commands.SubmitAsync(WorldCommandKind.AllocateCharacterPoint, connectionId, (ushort)kind, targetId, amount);
 
     /// <summary>
     /// Allocates unspent attribute or skill mastery points. Synchronous form used by the tick and tests; handlers use

@@ -30,19 +30,19 @@ public sealed partial class AuthoritativeWorld
 {
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitHarvestPropAsync(ulong connectionId, int tileX, int tileY) =>
-        _commands.Submit(WorldCommandKind.HarvestProp, connectionId, tileX, tileY);
+        _commands.SubmitAsync(WorldCommandKind.HarvestProp, connectionId, tileX, tileY);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitPlaceStructureAsync(ulong connectionId, int tileX, int tileY, StructureType structureType, StructureRotation rotation = StructureRotation.North) =>
-        _commands.Submit(WorldCommandKind.PlaceStructure, connectionId, tileX, tileY, structureType, rotation);
+        _commands.SubmitAsync(WorldCommandKind.PlaceStructure, connectionId, tileX, tileY, structureType, rotation);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitDemolishStructureAsync(ulong connectionId, int tileX, int tileY) =>
-        _commands.Submit(WorldCommandKind.DemolishStructure, connectionId, tileX, tileY);
+        _commands.SubmitAsync(WorldCommandKind.DemolishStructure, connectionId, tileX, tileY);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitToggleDoorAsync(ulong connectionId, int tileX, int tileY) =>
-        _commands.Submit(WorldCommandKind.ToggleDoor, connectionId, tileX, tileY);
+        _commands.SubmitAsync(WorldCommandKind.ToggleDoor, connectionId, tileX, tileY);
 
     /// <inheritdoc/>
     public void FailPendingCommands() => _commands.FailAll(OpStatus.Conflict);

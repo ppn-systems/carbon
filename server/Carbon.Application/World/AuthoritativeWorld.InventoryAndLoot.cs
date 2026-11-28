@@ -47,35 +47,35 @@ public sealed partial class AuthoritativeWorld
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitSelectHotbarSlotAsync(ulong connectionId, byte slotIndex) =>
-        _commands.Submit(WorldCommandKind.SelectHotbarSlot, connectionId, slotIndex);
+        _commands.SubmitAsync(WorldCommandKind.SelectHotbarSlot, connectionId, slotIndex);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitCraftRecipeAsync(ulong connectionId, ushort recipeId, ushort quantity) =>
-        _commands.Submit(WorldCommandKind.CraftRecipe, connectionId, recipeId, quantity);
+        _commands.SubmitAsync(WorldCommandKind.CraftRecipe, connectionId, recipeId, quantity);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitMoveInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot, ushort expectedItemId) =>
-        _commands.Submit(WorldCommandKind.MoveInventorySlot, connectionId, fromSlot, toSlot, arg3: expectedItemId);
+        _commands.SubmitAsync(WorldCommandKind.MoveInventorySlot, connectionId, fromSlot, toSlot, arg3: expectedItemId);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitSplitInventorySlotAsync(ulong connectionId, ushort fromSlot, ushort toSlot, ushort quantity, ushort expectedItemId) =>
-        _commands.Submit(WorldCommandKind.SplitInventorySlot, connectionId, fromSlot, toSlot, quantity, expectedItemId);
+        _commands.SubmitAsync(WorldCommandKind.SplitInventorySlot, connectionId, fromSlot, toSlot, quantity, expectedItemId);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitSortInventoryAsync(ulong connectionId) =>
-        _commands.Submit(WorldCommandKind.SortInventory, connectionId, arg0: 0);
+        _commands.SubmitAsync(WorldCommandKind.SortInventory, connectionId, arg0: 0);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitDestroyInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
-        _commands.Submit(WorldCommandKind.DestroyInventoryItem, connectionId, slotIndex, arg2: quantity, arg3: expectedItemId);
+        _commands.SubmitAsync(WorldCommandKind.DestroyInventoryItem, connectionId, slotIndex, arg2: quantity, arg3: expectedItemId);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitUpgradeInventoryItemAsync(ulong connectionId, ushort slotIndex, ushort protectionItemId = 0) =>
-        _commands.Submit(WorldCommandKind.UpgradeInventoryItem, connectionId, slotIndex, protectionItemId);
+        _commands.SubmitAsync(WorldCommandKind.UpgradeInventoryItem, connectionId, slotIndex, protectionItemId);
 
     /// <inheritdoc/>
     public ValueTask<WorldMutationOutcome> SubmitDropInventoryItemAsync(ulong connectionId, ushort slotIndex, int quantity, ushort expectedItemId) =>
-        _commands.Submit(WorldCommandKind.DropInventoryItem, connectionId, slotIndex, arg2: quantity, arg3: expectedItemId);
+        _commands.SubmitAsync(WorldCommandKind.DropInventoryItem, connectionId, slotIndex, arg2: quantity, arg3: expectedItemId);
 
     /// <summary>Updates the selected hotbar slot and harvest tier. Synchronous form used by the tick and tests; handlers use the matching <c>Submit*Async</c> (ADR-017).</summary>
     public OpStatus TrySelectHotbarSlot(ulong connectionId, byte slotIndex)
