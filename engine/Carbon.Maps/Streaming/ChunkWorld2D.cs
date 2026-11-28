@@ -639,13 +639,18 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
     public bool TryGetChunk(int chunkX, int chunkY, out Chunk2D? chunk) =>
         _streamer.TryGet(chunkX, chunkY, out chunk);
 
-    /// <summary>Releases what <paramref name="stream"/> kept cached (a player left the world).</summary>
+    /// <summary>Releases what <paramref name="stream"/> kept cached or resident (a player left the world).</summary>
     /// <param name="stream">The stream passed to <see cref="UpdateAroundPosition"/>.</param>
-    public void ReleaseStream(ulong stream) => _generator.ReleaseStream(stream);
+    public void ReleaseStream(ulong stream)
+    {
+        _streamer.Release(stream);
+        _generator.ReleaseStream(stream);
+    }
 
     /// <summary>
     /// Streams and loads all chunks within <paramref name="chunkRadius"/> around the target world position,
-    /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool.
+    /// recycling chunks farther than <paramref name="evictionRadius"/> back into the pool, unless another
+    /// <paramref name="stream"/> (player) still keeps them within its own eviction radius.
     /// </summary>
     /// <param name="centerWorldPos">Target center world coordinates (e.g. camera or player).</param>
     /// <param name="chunkRadius">Active load radius in chunks (e.g. 4 chunks = 9x9 active grid).</param>
@@ -670,7 +675,8 @@ public sealed class ChunkWorld2D : IWorldPhysics2D
         _generator.PrewarmRoads(roadMinX, roadMinY, roadMaxX, roadMaxY, stream);
 
         // 1. Load the chunks in range; recycle those far away (their edits stay in the delta store).
-        _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius);
+        // A chunk another stream (player) still keeps is not evicted by this one.
+        _streamer.Stream(centerChunkX, centerChunkY, chunkRadius, evictionRadius, stream);
     }
 
     /// <summary>
