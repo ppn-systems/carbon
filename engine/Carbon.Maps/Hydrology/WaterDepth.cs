@@ -46,9 +46,15 @@ public static class WaterDepth
     public const float MaxInlandDepth = 0.16f;
 
     // The sea shelf: depth at increasing distances from the coast, in tiles (piecewise linear, strictly increasing).
-    private static ReadOnlySpan<float> ShelfDistances => [0f, 4f, 14f, 40f, 120f, 220f];
+    // Arrays, not `ReadOnlySpan<float> => [...]`: read per tile, that form calls RuntimeHelpers.CreateSpan on every read in
+    // unoptimized (Debug) code and allocates; Release folds either away. Private and only read through the spans below.
+    private static readonly float[] s_shelfDistances = [0f, 4f, 14f, 40f, 120f, 220f];
 
-    private static ReadOnlySpan<float> ShelfDepths => [MinDepth, ShallowFrom, MediumFrom, DeepFrom, AbyssFrom, MaxDepth];
+    private static readonly float[] s_shelfDepths = [MinDepth, ShallowFrom, MediumFrom, DeepFrom, AbyssFrom, MaxDepth];
+
+    private static ReadOnlySpan<float> ShelfDistances => s_shelfDistances;
+
+    private static ReadOnlySpan<float> ShelfDepths => s_shelfDepths;
 
     /// <summary>Gets the tier of a depth.</summary>
     /// <param name="depth">Depth below the surface; zero or less is dry land.</param>

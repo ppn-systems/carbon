@@ -13,6 +13,12 @@ namespace Carbon.Testing;
 /// two zero-allocation tests in two assemblies each failed once without a byte count. A result reports the bytes, a
 /// repeat window, the iterations, the elapsed time, the GC collections and the JIT compilations on the thread during the
 /// window, so a one-off runtime charge shows up as evidence in the failure message instead of a bare number.
+/// <para>
+/// Zero-allocation guards hold in Release only, which is what CI and <c>tools/ci/verify.sh</c> build. Unoptimized code
+/// allocates where optimized code does not: for example, every read of a <c>static ReadOnlySpan&lt;T&gt; P =&gt; [...]</c>
+/// property calls <c>RuntimeHelpers.CreateSpan</c> and allocates a field stub in Debug, while the JIT folds it away in
+/// Release. A Debug build's result says so in its <see cref="AllocationResult.ToString"/>; run guards with <c>-c Release</c>.
+/// </para>
 /// </summary>
 internal static class AllocationProbe
 {
@@ -126,6 +132,17 @@ internal readonly record struct AllocationResult(
     int ThreadId,
     bool SameThread)
 {
+    /// <summary>
+    /// The note a Debug build adds to every result: its numbers do not judge a guard, which holds in Release only (see
+    /// <see cref="AllocationProbe"/>). Empty in Release.
+    /// </summary>
+    public const string BuildNote =
+#if DEBUG
+        "; DEBUG BUILD: zero-allocation guards hold in Release only (unoptimized code allocates), run with -c Release";
+#else
+        "";
+#endif
+
     /// <summary>Gets the mean bytes per call.</summary>
     public double BytesPerIteration => this.Iterations > 0 ? (double)this.Bytes / this.Iterations : this.Bytes;
 
@@ -136,6 +153,6 @@ internal readonly record struct AllocationResult(
         string thread = this.SameThread ? string.Empty : " (closed on another thread)";
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{this.Bytes} B over {this.Iterations} iterations in {this.Elapsed.TotalMilliseconds:F1} ms{repeat}; GCs gen0/1/2 +{this.Gen0Collections}/+{this.Gen1Collections}/+{this.Gen2Collections}; JIT compilations on the thread +{this.JitCompilations}; thread {this.ThreadId}{thread}");
+            $"{this.Bytes} B over {this.Iterations} iterations in {this.Elapsed.TotalMilliseconds:F1} ms{repeat}; GCs gen0/1/2 +{this.Gen0Collections}/+{this.Gen1Collections}/+{this.Gen2Collections}; JIT compilations on the thread +{this.JitCompilations}; thread {this.ThreadId}{thread}{BuildNote}");
     }
 }

@@ -75,6 +75,18 @@ public sealed class AllocationProbeTests
         AllocationResult result = new(48, 0, 1_000, TimeSpan.FromMilliseconds(2.5), 1, 0, 0, 2, 17, SameThread: true);
 
         result.ToString().Should().Be(
-            "48 B over 1000 iterations in 2.5 ms (repeat window 0 B); GCs gen0/1/2 +1/+0/+0; JIT compilations on the thread +2; thread 17");
+            "48 B over 1000 iterations in 2.5 ms (repeat window 0 B); GCs gen0/1/2 +1/+0/+0; JIT compilations on the thread +2; thread 17" +
+            AllocationResult.BuildNote);
+    }
+
+    [Fact]
+    public void BuildNote_TellsADebugRunThatGuardsAreReleaseOnly()
+    {
+        string note = AllocationResult.BuildNote;
+#if DEBUG
+        note.Should().Contain("DEBUG BUILD").And.Contain("-c Release");
+#else
+        note.Should().BeEmpty("a Release result is evidence for the guard as it is");
+#endif
     }
 }
