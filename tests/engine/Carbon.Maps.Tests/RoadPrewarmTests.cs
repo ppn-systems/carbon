@@ -58,8 +58,8 @@ public sealed class RoadPrewarmTests(ITestOutputHelper output)
     [Fact]
     public void UpdateAroundPosition_SprintingAtTopSpeed_NeverBuildsARoadSiteOnTheCallingThread()
     {
-        // ADR-045 D1 (amended): the prewarm covers only the load radius, with no margin, because a road query reads two
-        // sites (about 14 chunks) beyond its rectangle. So even at the server's top speed the tick never plans a site.
+        // ADR-045 D1: the prewarm covers the load radius plus one chunk (K), a step's travel, so even at the server's top
+        // speed the tick never plans a site (RoadPrewarmCoverageTests pins the geometry).
         // AuthoritativeWorld moves a sprinting player 450 units a second times its speed multiplier, and streams every
         // 10 ticks at 30 Hz. A multiplier of 2 is well above what stats and effects reach.
         const float sprintSpeed = 450f;

@@ -55,7 +55,8 @@ What this shows:
 
 1. **D1 — Prewarm road sites.** `UpdateAroundPosition` calls a new `PrewarmRoads` next to `PrewarmHydrology`. It starts,
    on the thread pool, the build of every road site that chunks within `chunkRadius` of the centre would query; a site
-   is 7 chunks wide. *Amended:* the margin `K` beyond the load radius was removed (see Consequences). The builds start only for sites not cached and not in flight. The prewarm
+   is 7 chunks wide. *Amended twice:* the margin `K` beyond the load radius was first removed, then restored as
+   `K` = 1 chunk (`ChunkWorld2D.RoadPrewarmMarginChunks`; see Consequences). The builds start only for sites not cached and not in flight. The prewarm
    happens once per chunk-boundary crossing, as `Stream` does.
 2. **D2 — One build per site, joined, never duplicated.** The site cache holds `Lazy<RoadSiteData>` with
    `ExecutionAndPublication`, as hydrology does. If a chunk needs a site whose prewarm has not finished, the tick
@@ -134,9 +135,14 @@ What this shows:
   the player crosses into the neighbouring chunks, a few seconds ahead at walking speed. A sprint or a teleport into
   unexplored land can still join an in-flight build and wait for its rest.
 - Background CPU use rises a little: sites near a player are planned whether or not the player ends up there.
-- Query already reads 2 sites beyond any rectangle (about 14 chunks), so no extra margin is needed; K removed. A
-  mutation that ignored `K` survived every guard. `RoadPrewarmTests` pins the fact instead: a walk at the server's
-  top sprint speed never builds a road site on the tick.
+- `K` was first removed on the reasoning that a query already reads 2 sites beyond any rectangle (about 14 chunks).
+  That was wrong: the prewarm and the query expand their rectangles the same way, so a one-chunk step that crosses a
+  site boundary loads edge chunks reading a site row the previous step never queued. The same step queues it and
+  builds the chunk at once, so the tick races the worker for that site. `RoadPrewarmTests` passed by winning the race
+  (it failed about 1 run in 6 idle, every run under load). `K` = 1 chunk, one step's travel, covers it.
+  `RoadPrewarmCoverageTests` pins the geometry for every one-chunk step and start within a site, so a mutation back to
+  `K` = 0 fails deterministically; `RoadPrewarmTests` still checks that a walk at the server's top sprint speed never
+  builds a road site on the tick.
 - Generator code gains a second concurrent cache. D2's `Lazy` and D3's tests keep it deterministic.
 - The host stops the generator's background builds on shutdown (D10).
 - Generators with the same seed no longer share regions (D7).
@@ -160,6 +166,6 @@ In small PRs, each characterised first:
 ## Decisions taken
 
 - Joining the in-flight build (D2) is accepted; the no-roads fallback is rejected for determinism.
-- `N` = 2, from config. `K` was removed (D1).
+- `N` = 2, from config. `K` = 1 chunk (D1: first removed, then restored after the race above).
 - The hydrology cache becomes per world (D7), instead of pinning inside a process-wide cache.
 - D9 (no world lock) and D10 (clean shutdown) were added on review.
